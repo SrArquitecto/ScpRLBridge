@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>ScpRLBridge</AssemblyName>
+    <Nullable>disable</Nullable>
+    <LangVersion>12</LangVersion>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+        <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+        <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/UnityEngine.PhysicsModule.dll</HintPath>
+        <Private>false</Private>
+    </Reference>
+    <Reference Include="Exiled.API">
+      <HintPath>/home/ark/.config/SCP Secret Laboratory/LabAPI/dependencies/global/Exiled.API.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Exiled.Events">
+      <HintPath>/home/ark/.config/EXILED/Plugins/Exiled.Events.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror">
+      <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>/home/ark/.config/EXILED/Plugins/dependencies/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="CommandSystem.Core">
+      <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/CommandSystem.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="LabApi">
+      <HintPath>/home/ark/.local/share/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed/LabApi.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+</Project>
