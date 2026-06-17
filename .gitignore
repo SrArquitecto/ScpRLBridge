@@ -14,7 +14,7 @@
 *.user
 *.userprefs
 *.csproj.user
-
+*.dll
 # OS generated files
 .DS_Store
 .DS_Store?
