@@ -27,6 +27,7 @@ namespace ScpAgent.Bot
     {
         // ── Registro global de agentes activos ─────────────────────────────────
         public static readonly Dictionary<int, ScpAgentBot> AllAgents = new Dictionary<int, ScpAgentBot>();
+        
 
         // ── Identidad ───────────────────────────────────────────────────────────
         public int AgentId { get; private set; }

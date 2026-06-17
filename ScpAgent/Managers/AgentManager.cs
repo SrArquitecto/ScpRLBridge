@@ -6,19 +6,28 @@ using UnityEngine;
 using ScpAgent.Bot;
 using MEC;
 using ScpAgent.Bot.Interfaces;
+using ScpAgent.Components;
 
 namespace ScpAgent.Managers
 {
+    public class AgentSlot {
+    public IAgentController Bot;
+    public AgentSensors Sensor;
+    public bool IsActive;
+
+    public AgentSlot(IAgentController bot, AgentSensors sensor) {
+        Bot = bot;
+        Sensor = sensor;
+        IsActive = false;
+    }
+}
     public class AgentManager
     {
-        private readonly Dictionary<int, IAgentController> _agents2 = new();
         private readonly object _lock = new();
 
-        public static Dictionary<int, IAgentController> _agents { get;  set; } = new Dictionary<int, IAgentController>();
-
-        public Dictionary<int, IAgentController> Agents2 { get; private set; } = new Dictionary<int, IAgentController>();
-
-        public int numAgentes = 0;
+        private AgentSlot[] _botPool;
+  
+        private int _numAgentes = 0;
 
         public static AgentManager Instance { get; private set; }
 
@@ -27,16 +36,45 @@ namespace ScpAgent.Managers
             Instance = this;
         }
 
-        public bool Exists(int agentId)
+        public void Start(int numAgentes)
         {
-            lock (_lock)
-                return _agents.ContainsKey(agentId);
+            _numAgentes = numAgentes;
+            _botPool = new AgentSlot[_numAgentes];
         }
 
+        public bool Exists(int agentId)
+        {
+            // 1. Validamos que el ID esté dentro del rango del array
+            if (agentId < 0 || agentId >= _botPool.Length)
+                return false;
+
+            // 2. Retornamos si el bot está activo (ya no necesitas lock, 
+            // pues los arrays son estructuras de acceso directo seguras 
+            // en este contexto)
+            return _botPool[agentId].IsActive;
+        }
+
+
+        ///////////////////////////////////
+
+        public IAgentController GetNextAvailableBot() 
+        {
+            for(int i = 0; i < _botPool.Length; i++) {
+                if(!_botPool[i].IsActive) {
+                    _botPool[i].IsActive = true;
+                    return _botPool[i].Bot;
+                }
+            }
+            return null; // Pool lleno
+        }
+        ///////////////////////////////////
+        /// 
         public IAgentController Get(int agentId)
         {
-            lock (_lock)
-                return _agents.TryGetValue(agentId, out var agent) ? agent : null;
+            if (_botPool[agentId].Bot != null)
+                return _botPool[agentId].Bot;
+            else 
+                return null;
         }
         public Dictionary<int, IAgentController> GetAllSnapshot()
         {
