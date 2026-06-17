@@ -111,7 +111,7 @@ namespace ScpAgent.Managers
             _isSpawning = true;
             _roundEnding = false;
             
-            _agentManager.Clear(); 
+            AgentManager.Instance.ResetearTodos(); 
             if (_plugin.ControlServer.IsPythonConnected)
             {
                 Timing.RunCoroutine(DelayedSpawnSequence());

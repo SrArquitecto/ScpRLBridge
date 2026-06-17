@@ -75,7 +75,6 @@ namespace ScpAgent.Components
         private readonly Dictionary<int, string> _doorColliderCache
             = new Dictionary<int, string>();
 
-        private readonly ScpAgentBot _owner;
         private static readonly IComparer<RaycastHit> _raycastComparer =
             Comparer<RaycastHit>.Create((x, y) => x.distance.CompareTo(y.distance));
         private static readonly Comparison<(Door d, float dist)> _doorComparison =
@@ -86,9 +85,8 @@ namespace ScpAgent.Components
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
-        public AgentSensors(ScpAgentBot owner, Player player)
+        public AgentSensors(Player player)
         {
-            _owner  = owner;
             //_RefrescarPosicionBase();
             _player = player;
             for (int i = 0; i < _doorPool.Length;    i++) _doorPool[i]    = new DoorData();
