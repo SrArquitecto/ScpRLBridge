@@ -57,6 +57,7 @@ namespace ScpAgent.Bot
         private CharacterController _cc;
         private CoroutineHandle _initDelayHandle;
         private CoroutineHandle _respawnHandle;
+        private Vector3 _lastPos;
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -121,6 +122,10 @@ namespace ScpAgent.Bot
             _sensores = sensores;
         }
 
+        public void ResetearPosicionInicial(Vector3 posicionSpawn)
+        {
+            _lastPos = posicionSpawn;
+        }
         public void ResetEstado()
         {
             // ── Estado de acción ────────────────────────────────────────────
@@ -227,9 +232,6 @@ namespace ScpAgent.Bot
                 }
 
             return _sensores.GetCurrentState(
-                velLin:   0f,
-                velLat:   0f,
-                velVer:   0f,
                 fixedDelta: delTime,
                 accionAnterior: _ultimaAccion,
                 reward:   ConsumirRecompensa(),
@@ -436,7 +438,7 @@ namespace ScpAgent.Bot
                     ExiledPlayer = freshPlayer;
                     _InicializarMouseLook();
                     AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
-                    Log.Info($"[ScpAgentBot] Bot {AgentId} respawneado en nueva ronda. " +
+                    Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado en nueva ronda. " +
                             $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
                 }
                 else
@@ -537,6 +539,7 @@ namespace ScpAgent.Bot
             ExiledPlayer.Position = _botGameObject.transform.position;
         }
 
+
         private void _MoverCamara(float deltaYaw)
         {
             if (_mouseLookInstance == null || _fieldCurH == null) return;
@@ -547,6 +550,8 @@ namespace ScpAgent.Bot
 
             _fieldCurH.SetValue(_mouseLookInstance, currentH + deltaYaw);
             _fieldCurV.SetValue(_mouseLookInstance, currentV);
+            _fieldSyncH.SetValue(_mouseLookInstance, currentH + deltaYaw);
+            _fieldSyncV.SetValue(_mouseLookInstance, currentV);
             float readback = (float)_fieldCurH.GetValue(_mouseLookInstance);
         Log.Debug($"[Bot {AgentId}] Yaw: {currentH:F1} → {newH:F1} | Readback: {readback:F1}");
         }

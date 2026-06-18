@@ -123,7 +123,6 @@ namespace ScpAgent.Components
         // MÉTODO PRINCIPAL
         // ───────────────────────────────────────────────────────────────────────
         public AgentObservation GetCurrentState(
-            float velLin, float velLat, float velVer,
             float fixedDelta, int accionAnterior, float reward, bool done)
         {
             if (_player == null || !_player.IsAlive || _player.GameObject == null) 
@@ -132,6 +131,7 @@ namespace ScpAgent.Components
             // Si la cámara aún no se ha creado en el nuevo cuerpo, abortamos este frame
             if (_player.CameraTransform == null) 
                 return obsVacia;
+            
 
             Vector3 pos         = _player.Position;
             Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
@@ -147,8 +147,10 @@ namespace ScpAgent.Components
 
             // ── Velocidades lineales ───────────────────────────────────────────
             float vLin, vLat, vVer;
-            _CalcularVelocidades(pos, fixedDelta, out vLin, out vLat, out vVer);
-
+            _CalcularVelocidades(pos, fixedDelta, camRotation.y, out vLin, out vLat, out vVer);
+            bool intentaMoverse = (accionAnterior == 0 || accionAnterior == 1 || accionAnterior == 2 || accionAnterior == 3 || accionAnterior == 4);
+            if (intentaMoverse && _player.Nickname == "IA_Agent_0")
+                Log.Info($"PLAYER {_player.Nickname} VEL LINEAL: {vLin} | VEL LATERAL: {vLin} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
             // ── Posición relativa dentro de la sala ────────────────────────────
             float relX = 0f, relY = 0f, relZ = 0f;
             AgentCacheData data;
@@ -204,19 +206,33 @@ namespace ScpAgent.Components
         // ───────────────────────────────────────────────────────────────────────
         // VELOCIDADES
         // ───────────────────────────────────────────────────────────────────────
-        private void _CalcularVelocidades(Vector3 posActual, float fixedDelta,
+        private void _CalcularVelocidades(Vector3 posActual, float deltaTime, float yaw,
             out float velLin, out float velLat, out float velVer)
         {
-            Vector3 delta = posActual - _lastPos;
-            velLin = delta.magnitude / fixedDelta;
+            if (deltaTime <= 0f)
+            {
+                velLin = 0f; velLat = 0f; velVer = 0f;
+                return;
+            }
 
-            Vector3 localVel = _player.Transform.InverseTransformDirection(delta / fixedDelta);
-            velLat = localVel.x;
-            velVer = localVel.z;
+            // 1. Calcular velocidad en el espacio del mundo (World Space)
+            Vector3 delta = posActual - _lastPos;
+            Vector3 worldVelocity = delta / deltaTime;
+
+            // 2. PASO CLAVE: En lugar de usar _player.Transform (que está roto en el servidor),
+            // creamos una rotación limpia usando el Yaw que ya funciona bien.
+            Quaternion rotacionReal = Quaternion.Euler(0f, yaw, 0f);
+            
+            // Multiplicar por la inversa rota el vector del mundo al espacio local del bot
+            Vector3 localVel = Quaternion.Inverse(rotacionReal) * worldVelocity;
+
+            // 3. ASIGNACIÓN MATEMÁTICA REAL Y CORRECTA
+            velLin = localVel.z;      // Adelante (+) o Atrás (-) -> ¡Ahora sí tendrá signo!
+            velLat = localVel.x;      // Derecha (+) o Izquierda (-)
+            velVer = worldVelocity.y; // Altura real del mundo (Y global). Si no sube/baja, será 0.0
 
             _lastPos = posActual;
         }
-
         // ───────────────────────────────────────────────────────────────────────
         // ELEMENTOS CERCANOS
         // ───────────────────────────────────────────────────────────────────────

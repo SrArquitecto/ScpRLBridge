@@ -41,6 +41,7 @@ namespace ScpAgent.Managers
         public void OnSpawnComplete(Player exiledPlayer)
         {
             Bot.SetPlayer(exiledPlayer);
+            Bot.ResetearPosicionInicial(exiledPlayer.Position);
             Sensors.VincularPlayer(exiledPlayer);
             (Bot as ScpAgentBot)?.SetSensores(Sensors);
             IsReady = true;
@@ -89,7 +90,7 @@ namespace ScpAgent.Managers
             for (int i = 0; i < _numAgentes; i++)
                 _pool[i] = _CrearSlot(i);
 
-            Log.Info($"[AgentManager] Pool permanente de {_numAgentes} agentes creado.");
+            Log.Debug($"[AgentManager] Pool permanente de {_numAgentes} agentes creado.");
         }
 
         public void Spawnear()
@@ -120,7 +121,7 @@ namespace ScpAgent.Managers
                 if (_pool[i] != null)
                     _pool[i].Reset();
             }
-            Log.Info("[AgentManager] Todos los slots reseteados para nueva ronda.");
+            Log.Debug("[AgentManager] Todos los slots reseteados para nueva ronda.");
         }
 
         public void OnBotSpawnComplete(int agentId, Player exiledPlayer)
@@ -129,7 +130,7 @@ namespace ScpAgent.Managers
 
             _pool[agentId].OnSpawnComplete(exiledPlayer);
 
-            Log.Info($"[AgentManager] Agente {agentId} ({exiledPlayer.Nickname}) listo. " +
+            Log.Debug($"[AgentManager] Agente {agentId} ({exiledPlayer.Nickname}) listo. " +
                      $"({NumListos}/{_numAgentes})");
         }
 
@@ -211,7 +212,7 @@ namespace ScpAgent.Managers
             }
 
             Array.Clear(_pool, 0, _pool.Length);
-            Log.Info("[AgentManager] Pool destruido.");
+            Log.Debug("[AgentManager] Pool destruido.");
         }
 
         // ───────────────────────────────────────────────────────────────────────

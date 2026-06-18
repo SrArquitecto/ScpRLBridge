@@ -61,7 +61,7 @@ namespace ScpAgent.Managers
             if (_plugin.AgentManager.NumAgentes == 0 && _firstSpawn == true) {
                 _plugin.AgentManager.Inicializar(_plugin.ControlServer.NumAgentsExpected);
                 _firstSpawn = false;
-                //Log.Info("Inicializado por primera vez --------------------------------------------------------------------------------");
+                //Log.Debug("Inicializado por primera vez --------------------------------------------------------------------------------");
             }
             else
             {
@@ -69,7 +69,7 @@ namespace ScpAgent.Managers
                 {
                     _plugin.AgentManager.Reinicializar();
                     _firstSpawn = false;
-                    Log.Info("Inicializado -------------------------------------------------------------------------------------------------");
+                    Log.Debug("Inicializado -------------------------------------------------------------------------------------------------");
                 }
 
             }

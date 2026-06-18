@@ -282,7 +282,7 @@ namespace ScpAgent.Network
                     if (_clientes.Count >= NumAgentsExpected && !Initialized)
                     {
                         Initialized = true;
-                        Log.Info("[ControlServer] ✅ Todos los agentes conectados de forma segura.");
+                        Log.Debug("[ControlServer] ✅ Todos los agentes conectados de forma segura.");
                         IsPythonConnected = true;
                         MEC.Timing.RunCoroutine(_DispararEventoCreacion());
                     }
@@ -312,7 +312,7 @@ namespace ScpAgent.Network
             // 1. Le decimos a Unity: "Espera al siguiente frame/tick oficial del servidor"
             yield return MEC.Timing.WaitForOneFrame;
             // 2. Disparamos tu evento inyectando el numero de instancias 
-            Log.Info("[ControlServer] 🚀 Disparando AllAgentsReady.");
+            Log.Debug("[ControlServer] 🚀 Disparando AllAgentsReady.");
             AllAgentsReady?.Invoke();
         }
 
@@ -344,11 +344,11 @@ namespace ScpAgent.Network
             }
             catch (System.IO.IOException)
             {
-                Log.Info($"[ControlServer] Conexión del Agente {agentId} cerrada por el servidor (Fin de episodio).");
+                Log.Debug($"[ControlServer] Conexión del Agente {agentId} cerrada por el servidor (Fin de episodio).");
             }
             catch (ObjectDisposedException)
             {
-                Log.Info($"[ControlServer] Stream del Agente {agentId} destruido limpiamente.");
+                Log.Debug($"[ControlServer] Stream del Agente {agentId} destruido limpiamente.");
             }
             catch (Exception ex)
             {
@@ -446,7 +446,7 @@ namespace ScpAgent.Network
                 _frameTimeAccum += UnityEngine.Time.realtimeSinceStartup - frameStart;
                 if (++_frameTimeCount >= 100)
                 {
-                    Log.Info($"[Perf] BucleMaestro: {_frameTimeAccum / _frameTimeCount * 1000f:F2}ms");
+                    Log.Debug($"[Perf] BucleMaestro: {_frameTimeAccum / _frameTimeCount * 1000f:F2}ms");
                     _frameTimeAccum = 0f;
                     _frameTimeCount = 0;
                 }
