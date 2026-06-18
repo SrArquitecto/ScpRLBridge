@@ -8,7 +8,7 @@ using ScpAgent.Bot.Data;
 using Exiled.API.Features.Doors;
 using ScpAgent.Bot;
 using Exiled.API.Features.Lockers;
-
+using Exiled.API.Enums;
 
 namespace ScpAgent.Components
 {
@@ -18,9 +18,9 @@ namespace ScpAgent.Components
         private Player _player;
         public static readonly AgentObservation obsVacia = new AgentObservation { Done = true };
         private int _frameCounter = 0;
-        private const int UPDATE_FREQUENCY = 10;
+        private const int UPDATE_FREQUENCY = 20;
         private const float RANGO_MAPA     = 500f;
-        private const int   AIM_CACHE_FRAMES = 3;
+        private const int   AIM_CACHE_FRAMES = 5;
 
         // ── Estado de movimiento ────────────────────────────────────────────────
         private Vector3 _lastPos;
@@ -39,12 +39,13 @@ namespace ScpAgent.Components
         public List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();
         public List<KeycardData> _cachedNearKeycards { get; set; } = new List<KeycardData>();
         public List<LiftData> _cachedNearLifts { get; set; } = new List<LiftData>();
+        public List<RoomData> _cachedNearRooms { get; set; } = new List<RoomData>();
         private List<Locker> _cachedLockers;
 
         //private MapGeneration.Distributors.Locker[] _cachedLockers;
 
         public List<LockerData> _cachedNearLockers { get; set; } = new List<LockerData>();
-        public List<RoomData> _cachedNearRooms { get; set; } = new List<RoomData>();
+        
         private readonly List<(Door d, float dist)> _doorsConDist = new List<(Door d, float dist)>(50);
 
 
@@ -72,6 +73,7 @@ namespace ScpAgent.Components
         private List<Pickup> _cachedKeys;
         private List<Door>   _cachedDoors;
         private List<Lift>   _cachedLifts;
+        public List<Habitaciones> _cachedRooms { get; set; } = new List<Habitaciones>();
 
         // ── Cache de collider name por puerta (evita GetComponentsInChildren) ──
         // Se llena la primera vez que se procesa cada puerta y se reutiliza
@@ -247,6 +249,7 @@ namespace ScpAgent.Components
                 _CopiarACache(obs);
                 return;
             }
+            float t0 = UnityEngine.Time.realtimeSinceStartup;
         
             _cachedNearKeycards.Clear();
             _cachedNearDoors.Clear();
@@ -264,6 +267,7 @@ namespace ScpAgent.Components
             foreach (var pk in _cachedKeys)
             {
                 if (pk == null || !_IsKeycard(pk.Type) || keycardCount >= 5) continue;
+                if (!pk.IsSpawned) continue;
                 float d = Vector3.Distance(pk.Transform.position, pos);
                 if (d > 20f) continue;
         
@@ -282,8 +286,11 @@ namespace ScpAgent.Components
             }
         
             // ── PUERTAS ───────────────────────────────────────────────────────────
-            if (_cachedDoors == null) _cachedDoors = new List<Door>(Door.List);
-            else { _cachedDoors.Clear(); _cachedDoors.AddRange(Door.List); }
+            if (_cachedDoors == null)
+            {
+                _cachedDoors = new List<Door>(Door.List);
+                //Log.Info($"[Perf] Puertas cargadas: {_cachedDoors.Count}");
+            }
         
             // Reutilizar lista de tuplas cacheada
             _doorsConDist.Clear();
@@ -396,11 +403,20 @@ namespace ScpAgent.Components
                 _cachedNearLockers.Add(lkd);
                 lockerCount++;
             }
-        
-            // ── SALAS PRIORIZADAS ─────────────────────────────────────────────────
-            var habitaciones = ObtenerListaSalasPriorizadas(_player, playerTier);
-            foreach (var h in habitaciones)
+
+            if (_cachedRooms== null)
+                _cachedRooms = ObtenerListaSalasPriorizadas(playerTier);
+            else
             {
+                _cachedRooms.Clear();
+                _cachedRooms.AddRange(ObtenerListaSalasPriorizadas(playerTier));
+            }
+            // ── SALAS PRIORIZADAS ─────────────────────────────────────────────────
+            //var habitaciones = ObtenerListaSalasPriorizadas(_player, playerTier);
+            int roomsCounter = 0;
+            foreach (var h in _cachedRooms)
+            {
+                if (h == null || lockerCount >= 5) break;
                 _cachedNearRooms.Add(new RoomData {
                     Nombre    = h.NombreHabitacion,
                     PosX      = h.PosicionReal.x,
@@ -416,7 +432,13 @@ namespace ScpAgent.Components
                     Dist      = h.Distancia,
                     DistNorm  = h.DistanciaNormalizada
                 });
+                roomsCounter++;
             }
+            float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
+            //Log.Info($"Elapsed: {elapsed}");
+            if (elapsed > 2f)
+                Log.Info($"[Perf] _CargarElementosCercanos tardó {elapsed:F1}ms " +
+                        $"(Habitaciones={_cachedNearRooms?.Count} keys={_cachedKeys?.Count})");
         
             _CopiarACache(obs);
         }
@@ -429,11 +451,12 @@ namespace ScpAgent.Components
         {
             _aimCacheCounter++;
             if (_aimCacheCounter < AIM_CACHE_FRAMES)
-            {
+            {   
+                //Log.Info($"CACHE AIMRAYCAST");
                 _CopiarCacheAObs(obs);
                 return;
             }
-
+            float t0 = UnityEngine.Time.realtimeSinceStartup;
             _aimCacheCounter = 0;
             var ray = new Ray(_player.CameraTransform.position, _player.CameraTransform.forward);
             int hitCount = Physics.RaycastNonAlloc(ray, _raycastBuffer, 75f);
@@ -503,7 +526,9 @@ namespace ScpAgent.Components
                 var hitRoom = Room.Get(validHit.point);
                 _cachedAimRoom = hitRoom != null ? hitRoom.Type.ToString() : "Unknown";
             }
-
+            float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
+            if (elapsed > 2f)
+                Log.Info($"[Perf] AimRaycast tardó {elapsed:F1}ms hitCount={hitCount}");
             _CopiarCacheAObs(obs);
         }
 
@@ -595,6 +620,7 @@ namespace ScpAgent.Components
             _cachedDoors  = null;
             _cachedLifts  = null;
             _cachedLockers = null;
+            _cachedRooms = null;
             _doorColliderCache.Clear();
 
             // ── Contador de frames ───────────────────────────────────────────
@@ -654,7 +680,91 @@ namespace ScpAgent.Components
             if ((perms & 256) != 0) return 6;
             return 1;
         }    // implementa tu lógica
-        private List<Habitaciones> ObtenerListaSalasPriorizadas(Player p, int tier)
-            => new List<Habitaciones>();
+        public List<Habitaciones> ObtenerListaSalasPriorizadas(int tierTarjeta)
+        {
+            List<Habitaciones> listaPriorizada = new List<Habitaciones>();
+
+            foreach (Room sala in Room.List)
+            {
+                // Ignoramos salas desconocidas o zonas muertas
+                if (sala.Type == RoomType.Unknown) continue;
+
+                float prioridad = 0;
+
+                // --- LÓGICA DINÁMICA DE PRIORIDADES ---
+                switch (sala.Type)
+                {
+                    case RoomType.Lcz914:
+                        // Si necesita mejorar la tarjeta, 914 es la prioridad máxima absoluta
+                        prioridad = tierTarjeta is >= 1 and < 3 ? 80f : 0f;
+                        break;
+
+                    case RoomType.LczCheckpointB:
+                    case RoomType.LczCheckpointA:
+                        // Si ya tiene tarjeta buena para salir de LCZ, los checkpoints son vitales
+                        prioridad = tierTarjeta >= 3 ? 100f : 0f;
+                        break;
+                    case RoomType.LczPlants:
+                        prioridad = tierTarjeta <= 2 ? 40f : 5f;
+                        break;
+                    case RoomType.LczClassDSpawn:
+                        prioridad = 0;
+                        break;
+
+                    case RoomType.LczArmory:
+                        prioridad = tierTarjeta > 3 ? 60f : 0f;
+                        // Zonas de armas/loot (prioridad media-alta para sobrevivir)
+                        
+                        break;
+                    case RoomType.Lcz330:
+                        prioridad = tierTarjeta == 2 ? 100f : 0f;
+                        break;
+                    case RoomType.Lcz173:
+                    case RoomType.LczGlassBox:
+                    case RoomType.LczCafe:
+                        prioridad = tierTarjeta < 3 ? 100f : 0f;
+                        break;
+                    case RoomType.LczToilets:
+                        prioridad = tierTarjeta < 1 ? 80f : 0f;
+                        break;
+
+
+                    default:
+                        // Pasillos, curvas y salas estándar tienen prioridad baja (solo sirven para transitar)
+                        prioridad = 5f;
+                        break;
+                }
+
+                float distancia = Vector3.Distance(_player.Position, sala.Position);
+                Vector3 vectorObjetivo = sala.Position - _player.Transform.position;
+                Vector3 dirNormalizada = vectorObjetivo.normalized;
+                float distNormalizada = Mathf.Clamp01(vectorObjetivo.magnitude / RANGO_MAPA);
+                float salaNormX = Mathf.Clamp(sala.Position.x / RANGO_MAPA, -1f, 1f);
+                float salaNormY = Mathf.Clamp(sala.Position.y / RANGO_MAPA, -1f, 1f); // Altura (LCZ vs HCZ)
+                float salaNormZ = Mathf.Clamp(sala.Position.z / RANGO_MAPA, -1f, 1f);
+
+                listaPriorizada.Add(new Habitaciones
+                {
+                    NombreHabitacion = sala.Type.ToString(),
+                    PosicionReal = sala.Position,
+                    PosicionNormX = dirNormalizada.x,
+                    PosicionNormY = dirNormalizada.y,
+                    PosicionNormZ = dirNormalizada.z,
+                    PosicionUbiX = salaNormX,
+                    PosicionUbiY = salaNormY,
+                    PosicionUbiZ = salaNormZ,
+                    Prioridad = prioridad/200f,
+                    Distancia = distancia,
+                    DistanciaNormalizada = distNormalizada
+                });
+
+            }
+
+            return listaPriorizada
+            .OrderByDescending(r => r.Prioridad)
+            .ThenBy(r => r.Distancia)
+            //.Take(5)
+            .ToList();
+        }
     }
 }

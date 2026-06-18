@@ -434,15 +434,15 @@ namespace ScpAgent.Network
 
                     try
                     {
-                        if (_frameCount % 500 == 0)
-                        {
-                            AgentManager.Instance.ForEachListo((id, bot, sensors) => {
-                                Log.Info($"[Leak] Agente {id} — " +
-                                        $"agentCache={AgentSensors.agentCacheData.Count} " +
-                                        $"doorCache={sensors._doorColliderCache.Count}" +
-                                        $"nearRooms={sensors._cachedNearRooms.Count}");
-                            });
-                        }
+                        //if (_frameCount % 500 == 0)
+                        //{
+                            //AgentManager.Instance.ForEachListo((id, bot, sensors) => {
+                                //Log.Info($"[Leak] Agente {id} — " +
+                                        //$"agentCache={AgentSensors.agentCacheData.Count} " +
+                                        //$"doorCache={sensors._doorColliderCache.Count}" +
+                                        //$"nearRooms={sensors._cachedNearRooms.Count}");
+                            //});
+                        //}
                         _ProcesarMensaje(bot, msg, agentId, deltaTime);
                     }
                     catch (Exception ex)
