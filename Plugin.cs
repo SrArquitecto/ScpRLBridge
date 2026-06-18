@@ -33,8 +33,8 @@ namespace ScpAgent
             Instance = this;
             ControlServer = new ControlServer();
             ControlServer.IniciarServidor(Config.Port);
-            AgentManager = new AgentManager();
-            RoundManager = new RoundManager(this, AgentManager);
+            AgentManager = new AgentManager(this);
+            RoundManager = new RoundManager(this);
             // 2. INICIALIZACIÓN DE LA RED
             // Instanciamos el servidor TCP y lo encendemos en el puerto configurado
             
@@ -53,7 +53,7 @@ namespace ScpAgent
         {
             // 1. APAGADO DEL WATCHDOG
             Timing.KillCoroutines(_watchdogHandle);
-
+            AgentManager.Destruir();
             // 2. DESCONEXIÓN DE RED Y DETENCIÓN DEL BUCLE MAESTRO
             if (ControlServer != null)
             {

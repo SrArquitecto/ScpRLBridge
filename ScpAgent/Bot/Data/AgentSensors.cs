@@ -85,10 +85,10 @@ namespace ScpAgent.Components
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
-        public AgentSensors(Player player)
+        public AgentSensors()
         {
             //_RefrescarPosicionBase();
-            _player = player;
+            //_player = player;
             for (int i = 0; i < _doorPool.Length;    i++) _doorPool[i]    = new DoorData();
             for (int i = 0; i < _keycardPool.Length; i++) _keycardPool[i] = new KeycardData();
             for (int i = 0; i < _liftPool.Length;    i++) _liftPool[i]    = new LiftData();
@@ -100,12 +100,19 @@ namespace ScpAgent.Components
         /// Actualiza la referencia al jugador tras un respawn sin recrear la instancia.
         /// Preserva las cachés de listas globales (puertas, lifts, keycards).
         /// </summary>
-        public void ActualizarJugador(Player nuevoJugador)
+        public void VincularPlayer(Player freshPlayer)
         {
-            _player = nuevoJugador;
-            // Forzar recalculo del aim en el próximo tick
-            _aimCacheCounter = AIM_CACHE_FRAMES;
-            _frameCounter = UPDATE_FREQUENCY;
+            _player = freshPlayer;
+
+            // Actualizar posición base con la nueva posición de spawn
+            if (_player != null)
+            {
+                _lastPos   = _player.Position;
+                _lastYaw   = _player.CameraTransform.rotation.eulerAngles.y;
+                _lastPitch = _player.CameraTransform.rotation.eulerAngles.x;
+            }
+
+            Log.Debug($"[AgentSensors] Player vinculado: {freshPlayer?.Nickname}");
         }
 
         /// <summary>
@@ -528,7 +535,7 @@ namespace ScpAgent.Components
         private void _RefrescarPosicionBase()
         {
             if (_player == null) return;
-            ResetSensor();
+            ResetEstado();
             _lastPos   = _player.Position;
             _lastYaw   = _player.CameraTransform.rotation.eulerAngles.y;
             _lastPitch = _player.CameraTransform.rotation.eulerAngles.x;
@@ -536,82 +543,53 @@ namespace ScpAgent.Components
 
         }
         
-        public void ResetSensor()
+        public void ResetEstado()
         {
-            // ─────────────────────────────────────────────
-            // 1. Referencias del jugador
-            // ─────────────────────────────────────────────
-            _player = null;
+            // ── Estado de movimiento ─────────────────────────────────────────
+            _lastPos   = Vector3.zero;
+            _lastYaw   = 0f;
+            _lastPitch = 0f;
 
-            // ─────────────────────────────────────────────
-            // 2. Estado de frame / control de ejecución
-            // ─────────────────────────────────────────────
-            _frameCounter = 0;
-            _aimCacheCounter = 0;
-
-            // ─────────────────────────────────────────────
-            // 3. Estado de movimiento base
-            // ─────────────────────────────────────────────
-            //_lastPos = Vector3.zero;
-            //_lastYaw = 0f;
-            //_lastPitch = 0f;
-
-            // ─────────────────────────────────────────────
-            // 4. Cache de aim / raycast
-            // ─────────────────────────────────────────────
-            _cachedAimTarget = "None";
-            _cachedAimDist = 0f;
-            _cachedAimRoom = "Unknown";
+            // ── Cache del raycast ────────────────────────────────────────────
+            _aimCacheCounter   = 0;
+            _cachedAimTarget   = "None";
+            _cachedAimDist     = 0f;
+            _cachedAimRoom     = "Unknown";
             _cachedAimDoorName = "None";
-            _cachedHitName = "None";
-
-            _cachedHitX = 0f;
-            _cachedHitY = 0f;
-            _cachedHitZ = 0f;
-
-            _cachedForwardX = 0f;
-            _cachedForwardZ = 0f;
-
-            // ─────────────────────────────────────────────
-            // 5. Listas dinámicas (IMPORTANTE: Clear, no new)
-            // ─────────────────────────────────────────────
-            _cachedNearDoors?.Clear();
-            _cachedNearKeycards?.Clear();
-            _cachedNearLifts?.Clear();
-            _cachedNearLockers?.Clear();
-            _cachedNearRooms?.Clear();
-
+            _cachedHitName     = "None";
+            _cachedHitX        = 0f;
+            _cachedHitY        = 0f;
+            _cachedHitZ        = 0f;
+            _cachedForwardX    = 0f;
+            _cachedForwardZ    = 0f;
+            _frameCounter = UPDATE_FREQUENCY;
+            _aimCacheCounter = AIM_CACHE_FRAMES;
+            // ── Listas de entorno cercano ────────────────────────────────────
+            _cachedNearDoors.Clear();
+            _cachedNearKeycards.Clear();
+            _cachedNearLifts.Clear();
+            _cachedNearLockers.Clear();
+            _cachedNearRooms.Clear();
             _doorsConDist.Clear();
 
-            // ─────────────────────────────────────────────
-            // 6. Referencias a listas globales (NO destruir contenido global)
-            // ─────────────────────────────────────────────
-            _cachedKeys = null;
-            _cachedDoors = null;
-            _cachedLifts = null;
-
-            // ─────────────────────────────────────────────
-            // 7. Arrays pool (no necesitan reset, pero opcional si hay basura lógica)
-            // ─────────────────────────────────────────────
-            Array.Clear(_doorPool, 0, _doorPool.Length);
-            Array.Clear(_keycardPool, 0, _keycardPool.Length);
-            Array.Clear(_liftPool, 0, _liftPool.Length);
-            Array.Clear(_lockerPool, 0, _lockerPool.Length);
-
-            // ─────────────────────────────────────────────
-            // 8. Raycast buffers (NO necesario limpiarlos, pero lo dejo explícito)
-            // ─────────────────────────────────────────────
-            // No hace falta, se sobrescriben siempre
-
-            // ─────────────────────────────────────────────
-            // 9. Cache de colliders (CRÍTICO)
-            // ─────────────────────────────────────────────
+            // ── Caches de mapa (se recargan en el primer tick de la nueva ronda)
+            _cachedKeys   = null;
+            _cachedDoors  = null;
+            _cachedLifts  = null;
+            _cachedLockers = null;
             _doorColliderCache.Clear();
 
-            // ─────────────────────────────────────────────
-            // 10. Cache de lockers (referencia suelta)
-            // ─────────────────────────────────────────────
-            _cachedLockers = null;
+            // ── Contador de frames ───────────────────────────────────────────
+            //_frameCounter = 0;
+
+            Log.Debug($"[AgentSensors] Sensores reseteados para nueva ronda.");
+        }
+
+        public void Destruir()
+        {
+            _player = null;
+            ResetEstado();    
+        
         }
 
         private bool _IsKeycard(ItemType t) =>

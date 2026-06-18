@@ -1,6 +1,7 @@
 using ScpAgent.Bot.Data;
 using Exiled.API.Features;
 using ScpAgent.Components;
+using PlayerRoles;
 
 namespace ScpAgent.Bot.Interfaces 
 {
@@ -15,9 +16,13 @@ namespace ScpAgent.Bot.Interfaces
         void ReceiveAction(AgentAction action);
         void ActualizarFisica(float deltaTime);
         void EjecutarRespawn();
+        public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD);     
+        void SetPlayer(Player exiledPlayer);
+        void SetSensores(AgentSensors sensores);
+        void ResetEstado();
         AgentObservation GetObservation(float deltaTime);
         
-        AgentSensors GetSensores();
+        //AgentSensors GetSensores();
         void Destruir();
     }
 }

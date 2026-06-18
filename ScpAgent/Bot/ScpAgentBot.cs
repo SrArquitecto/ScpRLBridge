@@ -26,7 +26,7 @@ namespace ScpAgent.Bot
     public class ScpAgentBot : IAgentController
     {
         // ── Registro global de agentes activos ─────────────────────────────────
-        public static readonly Dictionary<int, ScpAgentBot> AllAgents = new Dictionary<int, ScpAgentBot>();
+        //public static readonly Dictionary<int, ScpAgentBot> AllAgents = new Dictionary<int, ScpAgentBot>();
 
         // ── Identidad ───────────────────────────────────────────────────────────
         public int AgentId { get; private set; }
@@ -61,13 +61,12 @@ namespace ScpAgent.Bot
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
-        public ScpAgentBot(string nickname, int id, RoleTypeId role = RoleTypeId.ClassD)
+        public ScpAgentBot(string nickname, int id, FakeConnection fakeConn, RoleTypeId role = RoleTypeId.ClassD)
         {
-            AgentId = id;
-            int idFalso = -1000 - AgentId;
+            AgentId   = id;
+            _fakeConn = fakeConn; // ← recibida desde AgentManager, no creada aquí
 
-            // 1. Crear conexión virtual y clonar el prefab del jugador
-            _fakeConn = new FakeConnection(idFalso);
+            // 1. Clonar el prefab del jugador
             GameObject prefab = NetworkManager.singleton.playerPrefab;
             _botGameObject = UnityEngine.Object.Instantiate(prefab);
 
@@ -76,12 +75,15 @@ namespace ScpAgent.Bot
             NetworkServer.AddPlayerForConnection(_fakeConn, _botGameObject);
             hub.nicknameSync.Network_myNickSync = nickname;
 
-            // 3. Obtener wrapper inicial de EXILED y asignar rol
+            // 3. Obtener wrapper inicial y asignar rol
             ExiledPlayer = Player.Get(_botGameObject);
             ExiledPlayer.Role.Set(role);
 
-            // 4. CRÍTICO: refrescar wrapper tras Role.Set (el wrapper puede quedar stale)
-            // Role.Set es asíncrono internamente — esperamos 0.1s antes de releer
+            // 4. Añadir CharacterController inmediatamente (no esperar al delay)
+            _cc = _botGameObject.GetComponent<CharacterController>();
+            if (_cc == null) _cc = _botGameObject.AddComponent<CharacterController>();
+
+            // 5. CRÍTICO: refrescar wrapper tras Role.Set
             _initDelayHandle = Timing.CallDelayed(1f, () =>
             {
                 var freshPlayer = Player.Get(_botGameObject);
@@ -89,32 +91,61 @@ namespace ScpAgent.Bot
                 {
                     ExiledPlayer = freshPlayer;
                     Log.Debug($"[ScpAgentBot] Bot {AgentId} ({nickname}) — wrapper refrescado. " +
-                             $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
+                            $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
                 }
                 else
                 {
-                    Log.Error($"[ScpAgentBot] Bot {AgentId} — no se pudo refrescar el wrapper de EXILED.");
+                    Log.Error($"[ScpAgentBot] Bot {AgentId} — no se pudo refrescar el wrapper.");
+                    return;
                 }
 
-                // 5. Añadir CharacterController si falta (necesario para cc.Move)
-                if (_botGameObject.GetComponent<CharacterController>() == null)
-                    _botGameObject.AddComponent<CharacterController>();
-
-                // 6. Inicializar reflection de FpcMouseLook (solo una vez)
+                // 6. Inicializar reflection de FpcMouseLook
                 _InicializarMouseLook();
 
-                // 7. Inicializar sensores con la referencia ya válida
-                //_sensores.ResetSensor();
-                _sensores = new AgentSensors(this, ExiledPlayer);
-                _sensores.ActualizarJugador(ExiledPlayer);
-                // 8. Registrar en el directorio global
-                //AllAgents[ExiledPlayer.Id] = this;
-
-                // 9. Suscribir eventos de recompensa
+                // 7. Suscribir eventos de recompensa
                 SuscribirEventos();
+
+                // 8. Notificar al AgentManager — activa el slot y vincula sensores
+                // AgentSensors.VincularPlayer() se llama desde AgentSlot.OnSpawnComplete()
+                AgentManager.Instance?.OnBotSpawnComplete(AgentId, ExiledPlayer);
             });
-            _cc = _botGameObject.GetComponent<CharacterController>();
-            if (_cc == null) _cc = _botGameObject.AddComponent<CharacterController>();
+        }
+
+        public void SetPlayer(Player exiledPlayer)
+        {
+            ExiledPlayer = exiledPlayer;
+        }
+
+        public void SetSensores(AgentSensors sensores)
+        {
+            _sensores = sensores;
+        }
+
+        public void ResetEstado()
+        {
+            // ── Estado de acción ────────────────────────────────────────────
+            _ultimaAccion   = 12; // NOOP
+            _lastActionTime = 0f;
+
+            // ── Estado de episodio ───────────────────────────────────────────
+            PendingReward     = 0f;
+            EpisodioTerminado = false;
+
+            // ── Flags de control ─────────────────────────────────────────────
+            _isRespawning = false;
+
+            // ── Cancelar corrutinas pendientes si las hay ─────────────────────
+            if (_respawnHandle.IsRunning)
+                Timing.KillCoroutines(_respawnHandle);
+
+            if (_initDelayHandle.IsRunning)
+                Timing.KillCoroutines(_initDelayHandle);
+
+            // ── MouseLook — no resetear los fields de reflection ─────────────
+            // _fieldCurH etc. siguen siendo válidos si el GameObject no cambió
+            // Se re-inicializan en _RutinaRespawn si es necesario
+
+            Log.Debug($"[ScpAgentBot] Bot {AgentId} estado reseteado.");
         }
 
         public void Destruir()
@@ -129,10 +160,10 @@ namespace ScpAgent.Bot
             DesuscribirEventos();
             _fakeConn.Disconnect();
             // 2. Borrar del registro estático global
-            if (ExiledPlayer != null && AllAgents.ContainsKey(ExiledPlayer.Id))
-            {
+            //if (ExiledPlayer != null && AllAgents.ContainsKey(ExiledPlayer.Id))
+            //{
                 //AllAgents.Remove(ExiledPlayer.Id);
-            }
+            //}
 
             // 3. Desconectar de Mirror (tu FakeConnection tiene la lógica perfecta para esto)
             _fakeConn?.Disconnect();
@@ -165,8 +196,35 @@ namespace ScpAgent.Bot
         /// </summary>
         public AgentObservation GetObservation(float delTime)
         {
-            if (ExiledPlayer == null || _sensores == null)
-                return new AgentObservation { Done = true };
+                if (ExiledPlayer == null)
+                {
+                    Log.Warn($"[Bot {AgentId}] GetObs: ExiledPlayer es NULL");
+                    return AgentSensors.obsVacia;
+                }
+
+                if (!ExiledPlayer.IsAlive)
+                {
+                    Log.Warn($"[Bot {AgentId}] GetObs: IsAlive=False Role={ExiledPlayer.Role.Type}");
+                    return AgentSensors.obsVacia;
+                }
+
+                if (ExiledPlayer.GameObject == null)
+                {
+                    Log.Warn($"[Bot {AgentId}] GetObs: GameObject es NULL");
+                    return AgentSensors.obsVacia;
+                }
+
+                if (ExiledPlayer.CameraTransform == null)
+                {
+                    Log.Warn($"[Bot {AgentId}] GetObs: CameraTransform es NULL");
+                    return AgentSensors.obsVacia;
+                }
+
+                if (_sensores == null)
+                {
+                    Log.Warn($"[Bot {AgentId}] GetObs: _sensores es NULL");
+                    return AgentSensors.obsVacia;
+                }
 
             return _sensores.GetCurrentState(
                 velLin:   0f,
@@ -245,259 +303,207 @@ namespace ScpAgent.Bot
         // ───────────────────────────────────────────────────────────────────────
         // RESPAWN
         // ───────────────────────────────────────────────────────────────────────
-// 1. Declarar este flag a nivel de clase en ScpAgentBot.cs
-   
-
-    public void EjecutarRespawn()
-    {   
-        if (_isRespawning) return; // Evita carreras de corrutinas concurrentes
-        // 1. 🔥 CORTE QUIRÚRGICO: Si había un respawn en progreso, lo matamos inmediatamente
-            if (_respawnHandle.IsValid)
-            {
-                Timing.KillCoroutines(_respawnHandle);
-            }
-
-            // 2. Forzamos el flag a false por si la corrutina muerta lo dejó en true
-            _isRespawning = false; 
-
-            // 3. Iniciamos la nueva rutina y guardamos su handle de seguimiento
-            _respawnHandle = Timing.RunCoroutine(_RutinaRespawn2());
-    }
-
-    private IEnumerator<float> _RutinaRespawn()
-    {
-        _isRespawning = true;
-        try
+        public void EjecutarRespawn()
         {
-            if (_botGameObject == null) yield break;
-
-            int idAntiguo = ExiledPlayer.Id;
-            // 1. Cambiar a Espectador momentáneamente para limpiar el cuerpo anterior
-            var current = Player.Get(_botGameObject);
-            if (current != null)
-                current.Role.Set(RoleTypeId.Spectator, RoleSpawnFlags.None);
-
-            yield return Timing.WaitForSeconds(0.2f);
-
-            // 2. Asignar ClassD de nuevo con flags de spawn completo
-            var respawning = Player.Get(_botGameObject);
-            if (respawning != null)
-                respawning.Role.Set(RoleTypeId.ClassD, RoleSpawnFlags.All);
-
-            yield return Timing.WaitForSeconds(0.1f);
-
-            // 3. Refrescar el wrapper de EXILED
-            var freshPlayer = Player.Get(_botGameObject);
-            if (freshPlayer != null)
-            {
-                int idNuevo = freshPlayer.Id;
-                if (idAntiguo != idNuevo)
+            if (_isRespawning) return; // Evita carreras de corrutinas concurrentes
+            // 1. 🔥 CORTE QUIRÚRGICO: Si había un respawn en progreso, lo matamos inmediatamente
+                if (_respawnHandle.IsValid)
                 {
-                    if (ScpAgent.Components.AgentSensors.agentCacheData.TryGetValue(idAntiguo, out var datosExistentes))
-                    {
-                        ScpAgent.Components.AgentSensors.agentCacheData[idNuevo] = datosExistentes;
-                        ScpAgent.Components.AgentSensors.agentCacheData.Remove(idAntiguo);
-                        Log.Debug($"[ScpAgentBot] Datos de sala migrados del ID viejo {idAntiguo} al nuevo {idNuevo}.");
-                    }
-                    //AgentManager.ActualizarRegistroId(idAntiguo, idNuevo, this);
+                    Timing.KillCoroutines(_respawnHandle);
                 }
-                ExiledPlayer = freshPlayer;
-                
-            }
 
-            // 4. Asegurar CharacterController único
-            if (_botGameObject.GetComponent<CharacterController>() == null)
-                _botGameObject.AddComponent<CharacterController>();
+                // 2. Forzamos el flag a false por si la corrutina muerta lo dejó en true
+                _isRespawning = false; 
 
-            // 5. Re-inicializar MouseLook con el módulo del nuevo cuerpo
-            _InicializarMouseLook();
-
-            // 6. 🌟 CRÍTICO: Limpiar y recrear los sensores con la referencia fresca del jugador
-            _sensores.ActualizarJugador(ExiledPlayer);
-
-            // 7. Resetear estado del episodio
-            PendingReward = 0f;
-            EpisodioTerminado = false;
-            _ultimaAccion = 12; // NOOP
-
-            Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado con éxito. Sensores re-enlazados. " +
-                    $"Role={ExiledPlayer?.Role.Type} IsAlive={ExiledPlayer?.IsAlive}");
+                // 3. Iniciamos la nueva rutina y guardamos su handle de seguimiento
+                _respawnHandle = Timing.RunCoroutine(_RutinaRespawn());
         }
-        finally
-        {
-            _isRespawning = false; // Garantiza que el flag se resetee pase lo que pase
-        }
-    }
 
-        private IEnumerator<float> _RutinaRespawn2()
+        private IEnumerator<float> _RutinaRespawn()
         {
             _isRespawning = true;
-
-            // 1. El bloque try-finally GLOBAL sí permite usar 'yield' dentro de su cuerpo.
             try
             {
                 if (_botGameObject == null) yield break;
 
-                int idAntiguo = -1;
+                int idAntiguo = ExiledPlayer?.Id ?? -1;
 
-                // ── FASE 1: Limpieza e inicio de transición (Sin yield interno) ──
-                try
-                {
-                    idAntiguo = (ExiledPlayer != null) ? ExiledPlayer.Id : -1;
-                    PendingReward = 0f;
-                    EpisodioTerminado = false;
-                    _ultimaAccion = 12;
+                // 1. Notificar al slot que el bot ya no está listo
+                AgentManager.Instance?.GetSlot(AgentId)?.Reset();
 
-                    var current = Player.Get(_botGameObject);
-                    if (current != null)
-                    {
-                        current.ClearInventory();
-                        current.Role.Set(RoleTypeId.Spectator, RoleSpawnFlags.None);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[ResetAgent - Fase 1] Error: {ex.Message}");
-                }
+                // 2. Cambiar a Espectador momentáneamente
+                var current = Player.Get(_botGameObject);
+                if (current != null)
+                    current.Role.Set(RoleTypeId.Spectator, RoleSpawnFlags.None);
 
-                // El yield está FUERA de los bloques 'catch', pero DENTRO del 'finally' general. ¡Compila perfectamente!
-                yield return Timing.WaitForSeconds(0.15f);
+                yield return Timing.WaitForSeconds(0.2f);
 
-                // ── FASE 2: Respawn físico a ClassD (Sin yield interno) ──
-                try
-                {
-                    var respawning = Player.Get(_botGameObject);
-                    if (respawning != null)
-                    {
-                        respawning.Role.Set(RoleTypeId.ClassD, RoleSpawnFlags.All);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[ResetAgent - Fase 2] Error: {ex.Message}");
-                }
+                // 3. Asignar ClassD de nuevo
+                var respawning = Player.Get(_botGameObject);
+                if (respawning != null)
+                    respawning.Role.Set(RoleTypeId.ClassD, RoleSpawnFlags.All);
 
                 yield return Timing.WaitForSeconds(0.1f);
 
-                // ── FASE 3: Sincronización de Red, Sensores y Físicas (Sin yield interno) ──
-                try
+                // 4. Refrescar wrapper de EXILED
+                var freshPlayer = Player.Get(_botGameObject);
+                if (freshPlayer == null)
                 {
-                    var freshPlayer = Player.Get(_botGameObject);
-                    if (freshPlayer != null)
+                    Log.Error($"[ScpAgentBot] Bot {AgentId} — no se pudo refrescar wrapper tras respawn.");
+                    yield break;
+                }
+
+                // 5. Migrar cache de sala si el ID cambió
+                int idNuevo = freshPlayer.Id;
+                if (idAntiguo != idNuevo && idAntiguo >= 0)
+                {
+                    if (AgentSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
                     {
-                        int idNuevo = freshPlayer.Id;
-                        
-                        if (idAntiguo != -1 && idAntiguo != idNuevo)
-                        {
-                            if (ScpAgent.Components.AgentSensors.agentCacheData.TryGetValue(idAntiguo, out var datosExistentes))
-                            {
-                                ScpAgent.Components.AgentSensors.agentCacheData[idNuevo] = datosExistentes;
-                                ScpAgent.Components.AgentSensors.agentCacheData.Remove(idAntiguo);
-                            }
-
-                            AgentManager.ActualizarRegistroId(idAntiguo, idNuevo, this);
-
-                            if (AllAgents.ContainsKey(idAntiguo)) AllAgents.Remove(idAntiguo);
-                            AllAgents[idNuevo] = this;
-
-                            Log.Debug($"[ResetAgent] ID mutó de {idAntiguo} a {idNuevo}. Registros actualizados.");
-                        }
-                        else if (!AllAgents.ContainsKey(idNuevo))
-                        {
-                            AllAgents[idNuevo] = this;
-                        }
-
-                        ExiledPlayer = freshPlayer;
+                        AgentSensors.agentCacheData[idNuevo] = datos;
+                        AgentSensors.agentCacheData.Remove(idAntiguo);
+                        Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
                     }
-
-                    _cc = _botGameObject.GetComponent<CharacterController>();
-                    if (_cc == null) _cc = _botGameObject.AddComponent<CharacterController>();
-                    
-                    _cc.enabled = false; 
-                    _cc.enabled = true;
-
-                    _InicializarMouseLook();
-                    //_sensores.ResetSensor();
-                    _sensores?.ActualizarJugador(ExiledPlayer);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[ResetAgent - Fase 3] Error: {ex.Message}");
                 }
 
-                Log.Debug($"[ResetAgent] Bot {AgentId} reiniciado con éxito.");
+                ExiledPlayer = freshPlayer;
+
+                // 6. Asegurar CharacterController
+                if (_botGameObject.GetComponent<CharacterController>() == null)
+                    _botGameObject.AddComponent<CharacterController>();
+
+                // 7. Re-inicializar MouseLook
+                _InicializarMouseLook();
+
+                // 8. Notificar al AgentManager — reactiva el slot y vincula sensores frescos
+                // Esto llama AgentSlot.OnSpawnComplete() → Bot.SetPlayer() + Sensors.VincularPlayer()
+                AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
+
+                // 9. Resetear estado del episodio
+                PendingReward      = 0f;
+                EpisodioTerminado  = false;
+                _ultimaAccion      = 12;
+
+                Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado. " +
+                        $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
             }
             finally
             {
-                // 2. Este bloque se ejecuta SIEMPRE: ya sea porque la corrutina terminó de forma natural
-                // o porque fue interrumpida abruptamente por Timing.KillCoroutines().
-                _isRespawning = false; 
+                _isRespawning = false;
             }
         }
 
-    public void Respawn()
-    {
-            
-    }
-
-    private void _LimpiarComponentesPrevios()
-    {
-        try
+        /// <summary>
+/// Llamado por RoundManager tras cada Round.Restart().
+/// Recrea el GameObject y lo vincula de nuevo a Mirror — 
+/// la FakeConnection se reutiliza.
+/// </summary>
+        public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD)
         {
-            // ── FRENTE 1: DESTRUIR MONOBEHAVIOURS PERSONALIZADOS ──────────────────
-            // Si tu MouseLook (o scripts de movimiento/percepción) se añade como componente
-            // al GameObject, búscalo y destrúyelo explícitamente.
+            // 1. Destruir el GameObject anterior si existe
             if (_botGameObject != null)
             {
-                // Cambia 'MouseLook' por el nombre exacto de tu script/componente de Unity
-                /*
-                var viejoMouseLook = _botGameObject.GetComponent<MouseLook>(); 
-                if (viejoMouseLook != null)
+                UnityEngine.Object.Destroy(_botGameObject);
+                _botGameObject = null;
+            }
+
+            // 2. Limpiar la conexión anterior de Mirror si sigue registrada
+            if (NetworkServer.connections.ContainsKey(_fakeConn.connectionId))
+                NetworkServer.connections.Remove(_fakeConn.connectionId);
+
+            // 3. Clonar el prefab de nuevo
+            GameObject prefab = NetworkManager.singleton.playerPrefab;
+            _botGameObject = UnityEngine.Object.Instantiate(prefab);
+
+            // 4. Vincular con Mirror usando la misma FakeConnection
+            ReferenceHub hub = _botGameObject.GetComponent<ReferenceHub>();
+            NetworkServer.AddPlayerForConnection(_fakeConn, _botGameObject);
+            hub.nicknameSync.Network_myNickSync = $"IA_Agent_{AgentId}";
+
+            // 5. Obtener wrapper inicial y asignar rol
+            ExiledPlayer = Player.Get(_botGameObject);
+            ExiledPlayer.Role.Set(role);
+
+            // 6. Asegurar CharacterController
+            _cc = _botGameObject.GetComponent<CharacterController>();
+            if (_cc == null) _cc = _botGameObject.AddComponent<CharacterController>();
+
+            // 7. Refrescar wrapper tras Role.Set
+            Timing.CallDelayed(1f, () =>
+            {
+                var freshPlayer = Player.Get(_botGameObject);
+                if (freshPlayer != null)
                 {
-                    UnityEngine.Object.Destroy(viejoMouseLook);
-                    Log.Debug($"[ScpAgentBot] Componente MouseLook antiguo destruido para Bot {AgentId}.");
+                    ExiledPlayer = freshPlayer;
+                    _InicializarMouseLook();
+                    AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
+                    Log.Info($"[ScpAgentBot] Bot {AgentId} respawneado en nueva ronda. " +
+                            $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
+                }
+                else
+                {
+                    Log.Error($"[ScpAgentBot] Bot {AgentId} — fallo al refrescar wrapper en nueva ronda.");
+                }
+            });
+        }
+
+        private void _LimpiarComponentesPrevios()
+        {
+            try
+            {
+                // ── FRENTE 1: DESTRUIR MONOBEHAVIOURS PERSONALIZADOS ──────────────────
+                // Si tu MouseLook (o scripts de movimiento/percepción) se añade como componente
+                // al GameObject, búscalo y destrúyelo explícitamente.
+                if (_botGameObject != null)
+                {
+                    // Cambia 'MouseLook' por el nombre exacto de tu script/componente de Unity
+                    /*
+                    var viejoMouseLook = _botGameObject.GetComponent<MouseLook>(); 
+                    if (viejoMouseLook != null)
+                    {
+                        UnityEngine.Object.Destroy(viejoMouseLook);
+                        Log.Debug($"[ScpAgentBot] Componente MouseLook antiguo destruido para Bot {AgentId}.");
+                    }
+                    */
+                    // Si tienes más componentes añadidos por ti (ej. Sensores, Controladores), destrúyelos aquí:
+                    // var viejoSensor = _botGameObject.GetComponent<AgentSensor>();
+                    // if (viejoSensor != null) UnityEngine.Object.Destroy(viejoSensor);
+                }
+
+                // ── FRENTE 2: ROMPER EVENTOS DE C# (¡EL MAYOR CAUSANTE DE LEAKS!) ──────
+                // Si tu bot se suscribe a eventos de EXILED o del servidor para escuchar cuándo
+                // recibe daño, mata a alguien o toca una puerta, DEBES hacer el '-=' aquí.
+                if (ExiledPlayer != null)
+                {   
+                    DesuscribirEventos();
+                    // Ejemplos comunes de EXILED (Descomenta y adapta a los eventos que uses):
+                    // Exiled.Events.Handlers.Player.Hurting -= OnHurting;
+                    // Exiled.Events.Handlers.Player.Dying -= OnDying;
+                    
+                    Log.Debug($"[ScpAgentBot] Eventos de EXILED desvinculados para Bot {AgentId}.");
+                }
+
+                // ── FRENTE 3: ANULAR REFERENCIAS Y CONFIGURACIONES DE C# ──────────────
+                // Si usas clases puras de C# (que no heredan de MonoBehaviour) para IA,
+                // matemáticas o inputs, limpia sus estructuras internas y lánzalas al Garbage Collector.
+                /*
+                if (_moduloCamaraCsharp != null)
+                {
+                    _moduloCamaraCsharp.LimpiarCache(); // Si tiene listas o diccionarios dentro
+                    _moduloCamaraCsharp = null;         // Forzar recolección de basura
                 }
                 */
-                // Si tienes más componentes añadidos por ti (ej. Sensores, Controladores), destrúyelos aquí:
-                // var viejoSensor = _botGameObject.GetComponent<AgentSensor>();
-                // if (viejoSensor != null) UnityEngine.Object.Destroy(viejoSensor);
-            }
 
-            // ── FRENTE 2: ROMPER EVENTOS DE C# (¡EL MAYOR CAUSANTE DE LEAKS!) ──────
-            // Si tu bot se suscribe a eventos de EXILED o del servidor para escuchar cuándo
-            // recibe daño, mata a alguien o toca una puerta, DEBES hacer el '-=' aquí.
-            if (ExiledPlayer != null)
-            {   
-                DesuscribirEventos();
-                // Ejemplos comunes de EXILED (Descomenta y adapta a los eventos que uses):
-                // Exiled.Events.Handlers.Player.Hurting -= OnHurting;
-                // Exiled.Events.Handlers.Player.Dying -= OnDying;
-                
-                Log.Debug($"[ScpAgentBot] Eventos de EXILED desvinculados para Bot {AgentId}.");
-            }
+                // ── FRENTE 4: DETENER CORRUTINAS LOCALES DEL BOT ──────────────────────
+                // Si este bot inicia corrutinas individuales para enviar datos a Python por ticks,
+                // asegúrate de matarlas para que no sigan ejecutándose sobre el cuerpo viejo.
+                // Timing.KillCoroutines($"BucleTick_Bot_{AgentId}");
 
-            // ── FRENTE 3: ANULAR REFERENCIAS Y CONFIGURACIONES DE C# ──────────────
-            // Si usas clases puras de C# (que no heredan de MonoBehaviour) para IA,
-            // matemáticas o inputs, limpia sus estructuras internas y lánzalas al Garbage Collector.
-            /*
-            if (_moduloCamaraCsharp != null)
+            }
+            catch (Exception ex)
             {
-                _moduloCamaraCsharp.LimpiarCache(); // Si tiene listas o diccionarios dentro
-                _moduloCamaraCsharp = null;         // Forzar recolección de basura
+                Log.Warn($"[ScpAgentBot] Error al limpiar componentes previos del Bot {AgentId}: {ex.Message}");
             }
-            */
-
-            // ── FRENTE 4: DETENER CORRUTINAS LOCALES DEL BOT ──────────────────────
-            // Si este bot inicia corrutinas individuales para enviar datos a Python por ticks,
-            // asegúrate de matarlas para que no sigan ejecutándose sobre el cuerpo viejo.
-            // Timing.KillCoroutines($"BucleTick_Bot_{AgentId}");
-
         }
-        catch (Exception ex)
-        {
-            Log.Warn($"[ScpAgentBot] Error al limpiar componentes previos del Bot {AgentId}: {ex.Message}");
-        }
-    }
         // ───────────────────────────────────────────────────────────────────────
         // MÉTODOS DE MOVIMIENTO (privados)
         // ───────────────────────────────────────────────────────────────────────
@@ -740,13 +746,13 @@ namespace ScpAgent.Bot
         // LOOKUP ESTÁTICO
         // ───────────────────────────────────────────────────────────────────────
 
-        public static bool TryGetAgent(int playerId, out ScpAgentBot agent)
-            => AllAgents.TryGetValue(playerId, out agent);
+        //public static bool TryGetAgent(int playerId, out ScpAgentBot agent)
+            //=> AllAgents.TryGetValue(playerId, out agent);
 
-        public AgentSensors GetSensores()
-        {
-            return _sensores;
-        }
+        //public AgentSensors GetSensores()
+        //{
+            //return _sensores;
+        //}
     }
 
 

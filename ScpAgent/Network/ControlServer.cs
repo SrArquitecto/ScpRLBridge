@@ -68,11 +68,11 @@ namespace ScpAgent.Network
                      $"Esperando {NumAgentsExpected} agentes.");
         }
 
-        public void IniciarEntrenamiento(AgentManager agentManager)
+        public void IniciarEntrenamiento()
         {
             if (_isTrainingActive) return;
             _isTrainingActive = true;
-            _masterLoopHandle = Timing.RunCoroutine(_BucleMaestroCentral(agentManager.GetAllSnapshot()));
+            _masterLoopHandle = Timing.RunCoroutine(_BucleMaestroCentral());
             Log.Debug("[ControlServer] 🚀 Bucle Maestro Central iniciado.");
         }
 
@@ -411,45 +411,26 @@ namespace ScpAgent.Network
         // --------------------------------------------------------------------------
         // BUCLE MAESTRO DE FÍSICA Y SINCRONIZACIÓN (El Hilo de Unity)
         // --------------------------------------------------------------------------
-        private IEnumerator<float> _BucleMaestroCentral(Dictionary<int, IAgentController> botsActivos)
+        private IEnumerator<float> _BucleMaestroCentral()
         {
-            
-
             while (_isTrainingActive)
             {
                 yield return Timing.WaitForOneFrame;
 
-                // ── Capturar tiempo DESPUÉS del yield (solo mide tu código) ──────
                 float frameStart = UnityEngine.Time.realtimeSinceStartup;
                 float deltaTime  = UnityEngine.Time.deltaTime;
-                Log.Info($"[Perf] FPS servidor: {1f/UnityEngine.Time.deltaTime:F1}");
-                // ── Métricas de GC ────────────────────────────────────────────────
+
+                // ── Métricas de perf ──────────────────────────────────────────
                 if (++_frameCount % 100 == 0)
                     Log.Debug($"[Perf] Mem={System.GC.GetTotalMemory(false)/1024/1024}MB " +
-                            $"Gen0={System.GC.CollectionCount(0)} " +
-                            $"Gen1={System.GC.CollectionCount(1)} " +
-                            $"Gen2={System.GC.CollectionCount(2)}");
+                            $"Gen2={System.GC.CollectionCount(2)} FPS={1f/deltaTime:F1}");
 
-                int currentGen2 = System.GC.CollectionCount(2);
-                if (currentGen2 != _lastGen2)
+                // ── Procesar mensajes ─────────────────────────────────────────
+                AgentManager.Instance.ForEachListo((agentId, bot, sensors) =>
                 {
-                    Log.Debug($"[Perf] ⚠️ GC Gen2 en frame {_frameCount} (+{currentGen2 - _lastGen2})");
-                    _lastGen2 = currentGen2;
-                }
-
-                if (_frameCount > 10000) _frameCount = 0;
-
-                // ── Procesar mensajes ─────────────────────────────────────────────
-                foreach (var kv in botsActivos)
-                {
-                    int agentId = kv.Key;
-                    var bot     = kv.Value;
-
-                    if (bot == null) continue;
-
                     if (!_incoming.TryGetValue(agentId, out var colaIn) ||
                         !colaIn.TryDequeue(out string msg))
-                        continue;
+                        return; // lambda equivale a continue
 
                     try
                     {
@@ -459,15 +440,13 @@ namespace ScpAgent.Network
                     {
                         Log.Warn($"[ControlServer] Error Agente {agentId} ('{msg}'): {ex.Message}");
                     }
-                }
+                });
 
-                // ── Medir tiempo de tu código (sin el yield) ──────────────────────
+                // ── Medir tiempo del bucle ────────────────────────────────────
                 _frameTimeAccum += UnityEngine.Time.realtimeSinceStartup - frameStart;
-                _frameTimeCount++;
-                if (_frameTimeCount >= 100)
+                if (++_frameTimeCount >= 100)
                 {
-                    float avgMs = (_frameTimeAccum / _frameTimeCount) * 1000f;
-                    Log.Info($"[Perf] Tiempo medio BucleMaestro: {avgMs:F2}ms");
+                    Log.Info($"[Perf] BucleMaestro: {_frameTimeAccum / _frameTimeCount * 1000f:F2}ms");
                     _frameTimeAccum = 0f;
                     _frameTimeCount = 0;
                 }

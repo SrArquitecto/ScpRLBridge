@@ -42,6 +42,7 @@ namespace ScpAgent.Managers
         {
             Bot.SetPlayer(exiledPlayer);
             Sensors.VincularPlayer(exiledPlayer);
+            (Bot as ScpAgentBot)?.SetSensores(Sensors);
             IsReady = true;
         }
 
@@ -63,14 +64,16 @@ namespace ScpAgent.Managers
     public class AgentManager
     {
         public static AgentManager Instance { get; private set; }
+        private ScpRLPlugin _plugin;
 
         private AgentSlot[] _pool;
         private int         _numAgentes;
 
         private readonly object _lock = new object();
 
-        public AgentManager()
+        public AgentManager(ScpRLPlugin plugin)
         {
+            _plugin = plugin;
             Instance = this;
         }
 
@@ -88,6 +91,23 @@ namespace ScpAgent.Managers
 
             Log.Info($"[AgentManager] Pool permanente de {_numAgentes} agentes creado.");
         }
+
+        public void Spawnear()
+        {
+            for (int i = 0; i < _numAgentes; i++)
+            {
+                _pool[i].Bot.EjecutarRespawn();
+            }
+        }
+        
+        public void Reinicializar()
+        {
+            for (int i = 0; i < _numAgentes; i++)
+            {
+                _pool[i].Bot.SpawnearEnNuevaRonda();
+            }
+        }
+        
 
         // ───────────────────────────────────────────────────────────────────────
         // ENTRE RONDAS — resetear, no recrear
@@ -181,7 +201,11 @@ namespace ScpAgent.Managers
 
             for (int i = 0; i < _pool.Length; i++)
             {
-                try   { _pool[i]?.Bot?.Destruir(); }
+                try   { 
+                    _pool[i]?.Bot?.Destruir(); 
+                    _pool[i]?.Sensors.Destruir();
+                    _pool[i]?.FakeConnection.Disconnect();
+                }
                 catch (Exception ex)
                 { Log.Error($"[AgentManager] Error destruyendo agente {i}: {ex.Message}"); }
             }
