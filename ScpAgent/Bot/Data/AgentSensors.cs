@@ -149,8 +149,7 @@ namespace ScpAgent.Components
             float vLin, vLat, vVer;
             _CalcularVelocidades(pos, fixedDelta, camRotation.y, out vLin, out vLat, out vVer);
             bool intentaMoverse = (accionAnterior == 0 || accionAnterior == 1 || accionAnterior == 2 || accionAnterior == 3 || accionAnterior == 4);
-            if (intentaMoverse && _player.Nickname == "IA_Agent_0")
-                Log.Info($"PLAYER {_player.Nickname} VEL LINEAL: {vLin} | VEL LATERAL: {vLin} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
+            
             // ── Posición relativa dentro de la sala ────────────────────────────
             float relX = 0f, relY = 0f, relZ = 0f;
             AgentCacheData data;
@@ -199,7 +198,8 @@ namespace ScpAgent.Components
                                 observation.AimTarget == "Pickup")
                                && observation.AimDistance <= 2.4f;
             observation.CanInteract = canInteract ? 1 : 0;
-
+            if (_player.Nickname == "IA_Agent_0")
+                Log.Info($"PLAYER {_player.Nickname} ACTION: {accionAnterior} | POSICION: {pos} | AIMTARGET: {observation.AimTarget} | AIMDISTANCE: {observation.AimDistance} | VEL LINEAL: {vLin} | VEL LATERAL: {vLat} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
             return observation;
         }
 
