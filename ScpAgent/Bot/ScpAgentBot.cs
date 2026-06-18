@@ -105,6 +105,7 @@ namespace ScpAgent.Bot
 
                 // 7. Suscribir eventos de recompensa
                 SuscribirEventos();
+                _addBoundsToCache(ExiledPlayer);
 
                 // 8. Notificar al AgentManager — activa el slot y vincula sensores
                 // AgentSensors.VincularPlayer() se llama desde AgentSlot.OnSpawnComplete()
@@ -358,14 +359,7 @@ namespace ScpAgent.Bot
                 // 5. Migrar cache de sala si el ID cambió
                 int idNuevo = freshPlayer.Id;
                 if (idAntiguo != idNuevo && idAntiguo >= 0)
-                {
-                    if (AgentSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
-                    {
-                        AgentSensors.agentCacheData[idNuevo] = datos;
-                        AgentSensors.agentCacheData.Remove(idAntiguo);
-                        Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
-                    }
-                }
+                _destroyBoundsCache(idAntiguo, idNuevo);
 
                 ExiledPlayer = freshPlayer;
 
@@ -400,7 +394,9 @@ namespace ScpAgent.Bot
 /// la FakeConnection se reutiliza.
 /// </summary>
         public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD)
-        {
+        {   
+            int idAntiguo = ExiledPlayer?.Id ?? -1;
+            
             // 1. Destruir el GameObject anterior si existe
             if (_botGameObject != null)
             {
@@ -435,7 +431,10 @@ namespace ScpAgent.Bot
                 var freshPlayer = Player.Get(_botGameObject);
                 if (freshPlayer != null)
                 {
+                    int idNuevo = freshPlayer.Id;
+                    _destroyBoundsCache(idAntiguo, idNuevo);
                     ExiledPlayer = freshPlayer;
+                    _addBoundsToCache(ExiledPlayer);
                     _InicializarMouseLook();
                     AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
                     Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado en nueva ronda. " +
@@ -447,7 +446,18 @@ namespace ScpAgent.Bot
                 }
             });
         }
-
+        private void _destroyBoundsCache(int idAntiguo, int idNuevo)
+        {
+            if (idAntiguo != idNuevo && idAntiguo >= 0)
+            {
+                if (AgentSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
+                {
+                    AgentSensors.agentCacheData[idNuevo] = datos;
+                    AgentSensors.agentCacheData.Remove(idAntiguo);
+                    Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
+                }
+            }
+        }
         private void _LimpiarComponentesPrevios()
         {
             try
@@ -701,14 +711,7 @@ namespace ScpAgent.Bot
 
             try
             {
-                Bounds b = MapUtils.ObtenerBoundsTotal(ev.Player.CurrentRoom);
-                int pid = ev.Player.Id;
-
-                if (!AgentSensors.agentCacheData.ContainsKey(pid))
-                    AgentSensors.agentCacheData[pid] = new AgentCacheData();
-
-                AgentSensors.agentCacheData[pid].CurrentBounds = b;
-                AgentSensors.agentCacheData[pid].IsDataReady   = true;
+                _addBoundsToCache(ev.Player);
             }
             catch (Exception ex)
             {
@@ -716,6 +719,21 @@ namespace ScpAgent.Bot
             }
         }
 
+        private void _addBoundsToCache(Player player)
+        {
+            Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
+            int pid = player.Id;
+
+            if (!AgentSensors.agentCacheData.ContainsKey(pid))
+                AgentSensors.agentCacheData[pid] = new AgentCacheData();
+
+            AgentSensors.agentCacheData[pid].center = b.center;
+            AgentSensors.agentCacheData[pid].halfX = b.size.x / 2f;
+            AgentSensors.agentCacheData[pid].halfY = b.size.y / 2f;
+            AgentSensors.agentCacheData[pid].halfZ = b.size.z / 2f;
+            AgentSensors.agentCacheData[pid].IsDataReady   = true;           
+        }
+        
         // ───────────────────────────────────────────────────────────────────────
         // HELPERS (privados)
         // ───────────────────────────────────────────────────────────────────────

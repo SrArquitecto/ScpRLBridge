@@ -56,7 +56,10 @@ namespace ScpAgent.Components
         public static Dictionary<int, AgentCacheData> agentCacheData = new Dictionary<int, AgentCacheData>();
         private static readonly AgentCacheData _fallbackCacheData = new AgentCacheData 
         { 
-            CurrentBounds = new Bounds(Vector3.zero, Vector3.one * 10f) 
+            center = Vector3.zero,
+            halfX = Vector3.one.x * 10f,
+            halfY = Vector3.one.y * 10f,
+            halfZ = Vector3.one.z * 10f,
         };
 
         private readonly DoorData[]     _doorPool    = new DoorData[15];
@@ -72,7 +75,7 @@ namespace ScpAgent.Components
 
         // ── Cache de collider name por puerta (evita GetComponentsInChildren) ──
         // Se llena la primera vez que se procesa cada puerta y se reutiliza
-        private readonly Dictionary<int, string> _doorColliderCache
+        public Dictionary<int, string> _doorColliderCache
             = new Dictionary<int, string>();
 
         private static readonly IComparer<RaycastHit> _raycastComparer =
@@ -158,13 +161,11 @@ namespace ScpAgent.Components
                 data = _fallbackCacheData;
             }
 
-            Vector3 relativePos = pos - data.CurrentBounds.center;
-            float halfX = data.CurrentBounds.size.x / 2f;
-            float halfY = data.CurrentBounds.size.y / 2f;
-            float halfZ = data.CurrentBounds.size.z / 2f;
-            if (halfX > 0) relX = Mathf.Clamp(relativePos.x / halfX, -1f, 1f);
-            if (halfY > 0) relY = Mathf.Clamp(relativePos.y / halfY, -1f, 1f);
-            if (halfZ > 0) relZ = Mathf.Clamp(relativePos.z / halfZ, -1f, 1f);
+            Vector3 relativePos = pos - data.center;
+
+            if (data.halfX > 0) relX = Mathf.Clamp(relativePos.x / data.halfX, -1f, 1f);
+            if (data.halfY > 0) relY = Mathf.Clamp(relativePos.y / data.halfY, -1f, 1f);
+            if (data.halfZ > 0) relZ = Mathf.Clamp(relativePos.z / data.halfZ, -1f, 1f);
 
             var observation = new AgentObservation
             {
@@ -190,7 +191,7 @@ namespace ScpAgent.Components
                 Done        = done
             };
             
-            _CargarElementosCercanos(pos, data.CurrentBounds, halfX, halfY, halfZ, playerTier, observation);
+            _CargarElementosCercanos(pos, data.halfX, data.halfY, data.halfZ, playerTier, observation);
             _ProcesarAimRaycast(observation);
 
             bool canInteract = (observation.AimTarget == "Door" ||
@@ -198,8 +199,8 @@ namespace ScpAgent.Components
                                 observation.AimTarget == "Pickup")
                                && observation.AimDistance <= 2.4f;
             observation.CanInteract = canInteract ? 1 : 0;
-            if (_player.Nickname == "IA_Agent_0")
-                Log.Info($"PLAYER {_player.Nickname} ACTION: {accionAnterior} | POSICION: {pos} | AIMTARGET: {observation.AimTarget} | AIMDISTANCE: {observation.AimDistance} | VEL LINEAL: {vLin} | VEL LATERAL: {vLat} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
+            //if (_player.Nickname == "IA_Agent_0")
+                //Log.Info($"PLAYER {_player.Nickname} ACTION: {accionAnterior} | POSICION: {pos} | AIMTARGET: {observation.AimTarget} | AIMDISTANCE: {observation.AimDistance} | VEL LINEAL: {vLin} | VEL LATERAL: {vLat} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
             return observation;
         }
 
@@ -236,7 +237,7 @@ namespace ScpAgent.Components
         // ───────────────────────────────────────────────────────────────────────
         // ELEMENTOS CERCANOS
         // ───────────────────────────────────────────────────────────────────────
-        private void _CargarElementosCercanos(Vector3 pos, Bounds roomBounds,
+        private void _CargarElementosCercanos(Vector3 pos,
             float halfX, float halfY, float halfZ,
             int playerTier, AgentObservation obs)
         {
@@ -252,6 +253,7 @@ namespace ScpAgent.Components
             _cachedNearLifts.Clear();
             _cachedNearLockers.Clear();
             _cachedNearRooms.Clear();
+            _doorColliderCache.Clear();
             _frameCounter = 0;
         
             // ── KEYCARDS ──────────────────────────────────────────────────────────

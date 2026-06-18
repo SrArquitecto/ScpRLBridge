@@ -419,12 +419,12 @@ namespace ScpAgent.Network
 
                 float frameStart = UnityEngine.Time.realtimeSinceStartup;
                 float deltaTime  = UnityEngine.Time.deltaTime;
-
+                _frameCount++;
                 // ── Métricas de perf ──────────────────────────────────────────
                 if (++_frameCount % 100 == 0)
                     Log.Debug($"[Perf] Mem={System.GC.GetTotalMemory(false)/1024/1024}MB " +
                             $"Gen2={System.GC.CollectionCount(2)} FPS={1f/deltaTime:F1}");
-
+                
                 // ── Procesar mensajes ─────────────────────────────────────────
                 AgentManager.Instance.ForEachListo((agentId, bot, sensors) =>
                 {
@@ -434,6 +434,15 @@ namespace ScpAgent.Network
 
                     try
                     {
+                        if (_frameCount % 500 == 0)
+                        {
+                            AgentManager.Instance.ForEachListo((id, bot, sensors) => {
+                                Log.Info($"[Leak] Agente {id} — " +
+                                        $"agentCache={AgentSensors.agentCacheData.Count} " +
+                                        $"doorCache={sensors._doorColliderCache.Count}" +
+                                        $"nearRooms={sensors._cachedNearRooms.Count}");
+                            });
+                        }
                         _ProcesarMensaje(bot, msg, agentId, deltaTime);
                     }
                     catch (Exception ex)
