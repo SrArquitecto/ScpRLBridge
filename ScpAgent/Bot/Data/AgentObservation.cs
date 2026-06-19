@@ -149,4 +149,19 @@ namespace ScpAgent.Bot.Data
         public float Distancia { get; set; }
         public float DistanciaNormalizada { get; set; }// Opcional, pero muy útil para tu PPO
     }
+
+
+    public class ActorData
+    {
+        public string Role { get; set; }     // Ej: "ClassD", "Scp173", "Scientist"
+        public string Team { get; set; }     // Ej: "SCP", "Foundation", "Chaos"
+        public float RelX { get; set; }
+        public float RelY { get; set; }
+        public float RelZ { get; set; }
+        public float Distance { get; set; }
+        public float HealthPercent { get; set; } // Útil para decidir si atacar o huir
+        public bool IsVisible { get; set; }      // ¿Está detrás de una pared? (Raycast)
+    }
+
+
 }

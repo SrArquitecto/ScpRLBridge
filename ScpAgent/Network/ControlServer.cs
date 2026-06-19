@@ -421,28 +421,37 @@ namespace ScpAgent.Network
                 float deltaTime  = UnityEngine.Time.deltaTime;
                 _frameCount++;
                 // ── Métricas de perf ──────────────────────────────────────────
-                if (++_frameCount % 100 == 0)
-                    Log.Debug($"[Perf] Mem={System.GC.GetTotalMemory(false)/1024/1024}MB " +
+                if (++_frameCount % 1000 == 0)
+                {
+                    Log.Info($"[Perf] Mem={System.GC.GetTotalMemory(false)/1024/1024}MB " +
                             $"Gen2={System.GC.CollectionCount(2)} FPS={1f/deltaTime:F1}");
+                    float fps = 1f / UnityEngine.Time.deltaTime;
+                    float unscaledFps = 1f / UnityEngine.Time.unscaledDeltaTime;
+                    Log.Info($"[Perf] FPS={fps:F1} UnscaledFPS={unscaledFps:F1} " +
+                            $"FixedDelta={UnityEngine.Time.fixedDeltaTime*1000f:F1}ms");
                 
+                    Log.Info($"[Perf] Mirror connections: {Mirror.NetworkServer.connections.Count}");
+                    //_frameCount = 0;
+                }
+
                 // ── Procesar mensajes ─────────────────────────────────────────
                 AgentManager.Instance.ForEachListo((agentId, bot, sensors) =>
                 {
                     if (!_incoming.TryGetValue(agentId, out var colaIn) ||
                         !colaIn.TryDequeue(out string msg))
                         return; // lambda equivale a continue
-
                     try
                     {
-                        //if (_frameCount % 500 == 0)
-                        //{
-                            //AgentManager.Instance.ForEachListo((id, bot, sensors) => {
-                                //Log.Info($"[Leak] Agente {id} — " +
-                                        //$"agentCache={AgentSensors.agentCacheData.Count} " +
-                                        //$"doorCache={sensors._doorColliderCache.Count}" +
-                                        //$"nearRooms={sensors._cachedNearRooms.Count}");
-                            //});
-                        //}
+                        if (++_frameCount % 1000 == 0)
+                        {
+                            Log.Info($"[Perf] Agente {agentId} suscripciones {bot.contadorSuscripciones}");
+                            int roomsCount = (sensors != null && sensors._cachedRooms != null) ? sensors._cachedRooms.Count : -1;
+                            int nearRoomsCount = (sensors != null && sensors._cachedNearRooms != null) ? sensors._cachedNearRooms.Count : -1;
+                            Log.Info($"[Perf] Sensor {agentId} tamaño lista habitaciones: {sensors._cachedRooms.Count}, " +
+                            $"tamaño lista habitaciones cercanas: {sensors._cachedNearRooms.Count}");
+                            Log.Info($"[Perf] Sensor {agentId} tamaño lista puerta: {sensors._cachedDoors.Count}, " +
+                            $"tamaño lista habitaciones cercanas: {sensors._cachedNearRooms.Count}");
+                        }
                         _ProcesarMensaje(bot, msg, agentId, deltaTime);
                     }
                     catch (Exception ex)

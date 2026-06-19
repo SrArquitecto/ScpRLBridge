@@ -58,6 +58,7 @@ namespace ScpAgent.Bot
         private CoroutineHandle _initDelayHandle;
         private CoroutineHandle _respawnHandle;
         private Vector3 _lastPos;
+        public int contadorSuscripciones {get; set;} = 0;
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -637,23 +638,36 @@ namespace ScpAgent.Bot
         public void SuscribirEventos()
         {
             Exiled.Events.Handlers.Player.Escaping            += OnEscaping;
+            contadorSuscripciones++;
             Exiled.Events.Handlers.Player.Dying               += OnDying;
+            contadorSuscripciones++;
             Exiled.Events.Handlers.Player.PickingUpItem       += OnPickup;
+            contadorSuscripciones++;
             Exiled.Events.Handlers.Player.InteractingDoor     += OnInteractDoor;
+            contadorSuscripciones++;
             Exiled.Events.Handlers.Player.InteractingElevator += OnInteractElevator;
+            contadorSuscripciones++;
             Exiled.Events.Handlers.Player.InteractingLocker   += OnInteractingLocker;
+            contadorSuscripciones++;
             Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
         }
 
         public void DesuscribirEventos()
         {
             Exiled.Events.Handlers.Player.Escaping            -= OnEscaping;
+            contadorSuscripciones--;
             Exiled.Events.Handlers.Player.Dying               -= OnDying;
+            contadorSuscripciones--;
             Exiled.Events.Handlers.Player.PickingUpItem       -= OnPickup;
+            contadorSuscripciones--;
             Exiled.Events.Handlers.Player.InteractingDoor     -= OnInteractDoor;
+            contadorSuscripciones--;
             Exiled.Events.Handlers.Player.InteractingElevator -= OnInteractElevator;
+            contadorSuscripciones--;
             Exiled.Events.Handlers.Player.InteractingLocker   -= OnInteractingLocker;
+            contadorSuscripciones--;
             Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
+            contadorSuscripciones--;
         }
 
         private void OnEscaping(EscapingEventArgs ev)

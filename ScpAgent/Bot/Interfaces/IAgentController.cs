@@ -13,6 +13,7 @@ namespace ScpAgent.Bot.Interfaces
 
         bool _isRespawning { get; }
         Player ExiledPlayer { get; }
+        int contadorSuscripciones { get; }
         
         // Métodos clave que invoca el ControlServer
         void ReceiveAction(AgentAction action);
