@@ -9,12 +9,15 @@ using Mirror;
 using MEC;
 using ScpAgent.Bot.Data;
 using ScpAgent.Bot.Interfaces;
+using ScpAgent.Bot.Strategies.Interfaces;
+
 using ScpAgent.Bot.Simulation;
-using ScpAgent.Components;
 using Exiled.API.Features.Doors;
 using Exiled.Events.EventArgs.Player;
 using Exiled.API.Enums;
 using ScpAgent.Managers;
+using ScpAgent.Bot.Sensors.Intefaces;
+using ScpAgent.Bot.Sensors;
 
 
 namespace ScpAgent.Bot
@@ -37,7 +40,7 @@ namespace ScpAgent.Bot
         private float _lastActionTime;
 
         // ── Sensores ────────────────────────────────────────────────────────────
-        private AgentSensors _sensores;
+        private ISensors _sensores;
 
         // ── Recompensa y estado de episodio ─────────────────────────────────────
         public float PendingReward { get; set; } = 0f;
@@ -45,6 +48,7 @@ namespace ScpAgent.Bot
 
         // ── Referencia al GameObject (no cambia aunque el wrapper Player quede stale) ──
         private GameObject _botGameObject;
+        private readonly IAgentRoleStrategy _roleStrategy;
 
         // ── Reflection cache para FpcMouseLook ─────────────────────────────────
         private FieldInfo _fieldCurH;
@@ -119,7 +123,7 @@ namespace ScpAgent.Bot
             ExiledPlayer = exiledPlayer;
         }
 
-        public void SetSensores(AgentSensors sensores)
+        public void SetSensores(ISensors sensores)
         {
             _sensores = sensores;
         }
@@ -206,31 +210,31 @@ namespace ScpAgent.Bot
                 if (ExiledPlayer == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: ExiledPlayer es NULL");
-                    return AgentSensors.obsVacia;
+                    return AgentSensorsBase.obsVacia;
                 }
 
                 if (!ExiledPlayer.IsAlive)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: IsAlive=False Role={ExiledPlayer.Role.Type}");
-                    return AgentSensors.obsVacia;
+                    return AgentSensorsBase.obsVacia;
                 }
 
                 if (ExiledPlayer.GameObject == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: GameObject es NULL");
-                    return AgentSensors.obsVacia;
+                    return AgentSensorsBase.obsVacia;
                 }
 
                 if (ExiledPlayer.CameraTransform == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: CameraTransform es NULL");
-                    return AgentSensors.obsVacia;
+                    return AgentSensorsBase.obsVacia;
                 }
 
                 if (_sensores == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: _sensores es NULL");
-                    return AgentSensors.obsVacia;
+                    return AgentSensorsBase.obsVacia;
                 }
 
             return _sensores.GetCurrentState(
@@ -451,10 +455,10 @@ namespace ScpAgent.Bot
         {
             if (idAntiguo != idNuevo && idAntiguo >= 0)
             {
-                if (AgentSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
+                if (AgentSensorsBase.agentCacheData.TryGetValue(idAntiguo, out var datos))
                 {
-                    AgentSensors.agentCacheData[idNuevo] = datos;
-                    AgentSensors.agentCacheData.Remove(idAntiguo);
+                    AgentSensorsBase.agentCacheData[idNuevo] = datos;
+                    AgentSensorsBase.agentCacheData.Remove(idAntiguo);
                     Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
                 }
             }
@@ -738,14 +742,14 @@ namespace ScpAgent.Bot
             Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
             int pid = player.Id;
 
-            if (!AgentSensors.agentCacheData.ContainsKey(pid))
-                AgentSensors.agentCacheData[pid] = new AgentCacheData();
+            if (!AgentSensorsBase.agentCacheData.ContainsKey(pid))
+                AgentSensorsBase.agentCacheData[pid] = new AgentCacheData();
 
-            AgentSensors.agentCacheData[pid].center = b.center;
-            AgentSensors.agentCacheData[pid].halfX = b.size.x / 2f;
-            AgentSensors.agentCacheData[pid].halfY = b.size.y / 2f;
-            AgentSensors.agentCacheData[pid].halfZ = b.size.z / 2f;
-            AgentSensors.agentCacheData[pid].IsDataReady   = true;           
+            AgentSensorsBase.agentCacheData[pid].center = b.center;
+            AgentSensorsBase.agentCacheData[pid].halfX = b.size.x / 2f;
+            AgentSensorsBase.agentCacheData[pid].halfY = b.size.y / 2f;
+            AgentSensorsBase.agentCacheData[pid].halfZ = b.size.z / 2f;
+            AgentSensorsBase.agentCacheData[pid].IsDataReady   = true;           
         }
         
         // ───────────────────────────────────────────────────────────────────────

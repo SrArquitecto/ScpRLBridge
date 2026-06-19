@@ -14,7 +14,8 @@ using ScpAgent.Bot.Data;
 using MEC;
 using ScpAgent.Bot.Interfaces;
 using UnityEngine;
-using ScpAgent.Components;
+using ScpAgent.Bot.Sensors;
+
 
 namespace ScpAgent.Network
 {
@@ -444,13 +445,7 @@ namespace ScpAgent.Network
                     {
                         if (++_frameCount % 1000 == 0)
                         {
-                            Log.Info($"[Perf] Agente {agentId} suscripciones {bot.contadorSuscripciones}");
-                            int roomsCount = (sensors != null && sensors._cachedRooms != null) ? sensors._cachedRooms.Count : -1;
-                            int nearRoomsCount = (sensors != null && sensors._cachedNearRooms != null) ? sensors._cachedNearRooms.Count : -1;
-                            Log.Info($"[Perf] Sensor {agentId} tamaño lista habitaciones: {sensors._cachedRooms.Count}, " +
-                            $"tamaño lista habitaciones cercanas: {sensors._cachedNearRooms.Count}");
-                            Log.Info($"[Perf] Sensor {agentId} tamaño lista puerta: {sensors._cachedDoors.Count}, " +
-                            $"tamaño lista habitaciones cercanas: {sensors._cachedNearRooms.Count}");
+
                         }
                         _ProcesarMensaje(bot, msg, agentId, deltaTime);
                     }
@@ -531,7 +526,7 @@ namespace ScpAgent.Network
 
         private void _EnviarObservacionVacia(int agentId)
         {
-            AgentObservation obs = AgentSensors.obsVacia;
+            AgentObservation obs = AgentSensorsBase.obsVacia;
 
             string json = JsonUtils.ToJson(obs);
 

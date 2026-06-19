@@ -6,8 +6,9 @@ using UnityEngine;
 using MEC;
 using ScpAgent.Bot;
 using ScpAgent.Bot.Interfaces;
-using ScpAgent.Components;
+using ScpAgent.Bot.Sensors;
 using ScpAgent.Bot.Simulation;
+using ScpAgent.Bot.Sensors.Intefaces;
 
 namespace ScpAgent.Managers
 {
@@ -19,13 +20,13 @@ namespace ScpAgent.Managers
     {
         public readonly int              AgentId;
         public readonly IAgentController Bot;
-        public readonly AgentSensors     Sensors;
+        public readonly ISensors     Sensors;
         public readonly FakeConnection   FakeConnection;
 
         // true cuando ExiledPlayer es válido y el bot puede recibir acciones
         public bool IsReady { get; private set; }
 
-        public AgentSlot(int agentId, IAgentController bot, AgentSensors sensors, FakeConnection fakeConn)
+        public AgentSlot(int agentId, IAgentController bot, ISensors sensors, FakeConnection fakeConn)
         {
             AgentId        = agentId;
             Bot            = bot;
@@ -144,7 +145,7 @@ namespace ScpAgent.Managers
         public IAgentController  GetBot(int agentId)
             => _ValidarId(agentId) ? _pool[agentId]?.Bot : null;
 
-        public AgentSensors      GetSensors(int agentId)
+        public ISensors      GetSensors(int agentId)
             => _ValidarId(agentId) ? _pool[agentId]?.Sensors : null;
 
         public bool              EstaListo(int agentId)
@@ -154,7 +155,7 @@ namespace ScpAgent.Managers
         /// Itera sobre slots listos SIN crear colecciones nuevas.
         /// Usar en el BucleMaestro en vez de GetBotsListos().
         /// </summary>
-        public void ForEachListo(Action<int, IAgentController, AgentSensors> action)
+        public void ForEachListo(Action<int, IAgentController, ISensors> action)
         {
             for (int i = 0; i < _pool.Length; i++)
             {
@@ -235,7 +236,7 @@ namespace ScpAgent.Managers
                     var bot = new ScpAgentBot(nickname, agentId, fakeConn, RoleTypeId.ClassD);
 
                     // Sensores vacíos — VincularPlayer() los activará
-                    var sensors = new AgentSensors();
+                    var sensors = new HumanSensors();
 
                     return new AgentSlot(agentId, bot, sensors, fakeConn);
                 }
