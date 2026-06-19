@@ -15,7 +15,7 @@
 *.userprefs
 *.csproj.user
 *.dll
-*.pbd
+*.pdb
 # OS generated files
 .DS_Store
 .DS_Store?
@@ -24,3 +24,4 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+bin/Release/net48/ScpRLBridge.pdb

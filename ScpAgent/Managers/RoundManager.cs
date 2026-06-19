@@ -135,7 +135,7 @@ namespace ScpAgent.Managers
             _roundEnding = false;
             Log.Debug($"[RoundManager] 🏁 === Iniciando Episodio {_episode} ===");
 
-            // 2. ¡ENCENDEMOS EL MOTOR CENTRAL!: Le entregamos los bots activos al servidor TCP
+            // 2 ¡ENCENDEMOS EL MOTOR CENTRAL!: Le entregamos los bots activos al servidor TCP
             _plugin.ControlServer.IniciarEntrenamiento();
         }
 
