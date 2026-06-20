@@ -16,6 +16,7 @@ using ScpAgent.Bot.Interfaces;
 using UnityEngine;
 using ScpAgent.Bot.Sensors;
 using ScpAgent.Network.Event;
+using PlayerRoles;
 
 namespace ScpAgent.Network
 {
@@ -484,20 +485,20 @@ namespace ScpAgent.Network
                         !bot.ExiledPlayer.IsAlive || 
                         bot.ExiledPlayer.GameObject == null)
                     {
-                        _EnviarObservacionVacia(agentId);
+                        _EnviarObservacionVacia(agentId, bot.ExiledPlayer.Role.Type);
                         return;
                     }
                 }
                 catch
                 {
-                    _EnviarObservacionVacia(agentId);
+                    _EnviarObservacionVacia(agentId, bot.ExiledPlayer.Role.Type);
                     return;
                 }
                 if (msg == "RESPAWN")
                 {
                     bot.EjecutarRespawn();
                     // Responder con estado vacío mientras el respawn se completa
-                    _EnviarObservacionVacia(agentId);
+                    _EnviarObservacionVacia(agentId, bot.ExiledPlayer.Role.Type);
                     return;
                 }
 
@@ -533,7 +534,7 @@ namespace ScpAgent.Network
         private void _EnviarObservacion(IAgentController bot, int agentId, float deltaTime)
         {
             AgentObservation obs = bot.GetObservation(deltaTime);
-            string json = JsonUtils.ToJson(obs);
+            string json = JsonUtils.ToJson(obs, bot.ExiledPlayer.Role.Type);
             if (_frameCount % 500 == 0)
                 Log.Info($"[Perf] JSON size Agente {agentId}: {json.Length} chars");
             
@@ -550,11 +551,11 @@ namespace ScpAgent.Network
             }
         }
 
-        private void _EnviarObservacionVacia(int agentId)
+        private void _EnviarObservacionVacia(int agentId, RoleTypeId role)
         {
             AgentObservation obs = BaseSensors.obsVacia;
 
-            string json = JsonUtils.ToJson(obs);
+            string json = JsonUtils.ToJson(obs, role);
 
             if (_outgoing.TryGetValue(agentId, out var colaOut))
             {

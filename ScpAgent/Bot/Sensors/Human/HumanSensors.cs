@@ -129,10 +129,6 @@ namespace ScpAgent.Bot.Sensors
             float t0 = UnityEngine.Time.realtimeSinceStartup;
         
             _cachedNearKeycards.Clear();
-            _cachedNearDoors.Clear();
-            _cachedNearLifts.Clear();
-            _cachedNearLockers.Clear();
-            _cachedNearRooms.Clear();
             //_doorColliderCache.Clear();
             _frameCounter = 0;
         
@@ -246,6 +242,7 @@ namespace ScpAgent.Bot.Sensors
         
         public override void ResetEstado()
         {
+            base.ResetEstado();
             // ── Estado de movimiento ─────────────────────────────────────────
             _lastPos   = Vector3.zero;
             _lastYaw   = 0f;
@@ -266,21 +263,19 @@ namespace ScpAgent.Bot.Sensors
             _frameCounter = UPDATE_FREQUENCY;
             _aimCacheCounter = AIM_CACHE_FRAMES;
             // ── Listas de entorno cercano ────────────────────────────────────
-            _cachedNearDoors.Clear();
+            
             _cachedNearKeycards.Clear();
-            _cachedNearLifts.Clear();
+            
             _cachedNearLockers.Clear();
-            _cachedNearRooms.Clear();
-            _doorsConDist.Clear();
-            _roomsPriorizada.Clear();
+            
+
+
 
             // ── Caches de mapa (se recargan en el primer tick de la nueva ronda)
             _cachedKeys   = null;
-            _cachedDoors  = null;
-            _cachedLifts  = null;
+            
             _cachedLockers = null;
-            _cachedRooms = null;
-            _doorColliderCache.Clear();
+            
 
             // ── Contador de frames ───────────────────────────────────────────
             //_frameCounter = 0;

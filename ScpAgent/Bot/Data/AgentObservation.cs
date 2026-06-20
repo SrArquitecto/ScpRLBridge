@@ -1,12 +1,15 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Exiled.API.Features;
+using PlayerRoles;
 
 namespace ScpAgent.Bot.Data
 {
     public class AgentObservation
     {
         // Estado básico y GPS
+        public Team Faction { get; set; }
+        public float FactionId { get; set; }
         public float PosX { get; set; }
         public float PosY { get; set; }
         public float PosZ { get; set; }
@@ -40,6 +43,7 @@ namespace ScpAgent.Bot.Data
         public List<LiftData> NearLifts { get; set; } = new List<LiftData>();
         public List<LockerData> NearLockers { get; set; } = new List<LockerData>();
         public List<RoomData> NearRooms { get; set; } = new List<RoomData>();
+        public List<ActorData> NearPlayers { get; set; } = new List<ActorData>();
 
         public int TotalRooms => NearRooms.Count;
 
@@ -156,19 +160,32 @@ namespace ScpAgent.Bot.Data
     public class ActorData
     {
         public string Role { get; set; }     // Ej: "ClassD", "Scp173", "Scientist"
-        public int FactionId { get; set;}
+        public int FactionId { get; set; }
+        public float Hostilidad { get; set; }
         public string Team { get; set; }     // Ej: "SCP", "Foundation", "Chaos"
         public float RelX { get; set; }
         public float RelY { get; set; }
         public float RelZ { get; set; }
         public float Distance { get; set; }
-        public float HealthPercent { get; set; } // Útil para decidir si atacar o huir
+        public float Health { get; set; } // Útil para decidir si atacar o huir
         public float MiradaHaciaMi { get; set; }
+        public bool  EsRecordado { get; set; }
+        public float Antiguedad  { get; set; }
     }
 
     public struct Actor
     {
-        public Player Player;    // <--- ¡Asegúrate de que esta línea exista!
-        public float Distancia;
+            public Player  Player;
+            public float   Distancia;
+            public bool    EsRecordado;
+            public Vector3 PosicionRecordada;
+            public float   Antiguedad;
+    }
+
+    public class MemoriaJugador
+    {
+        public Vector3 UltimaPosicion;
+        public float   UltimoTimestamp;
+        public bool    VistoEsteFrame;
     }
 }

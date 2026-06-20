@@ -6,6 +6,8 @@ using ScpAgent.Bot.Data;
 using Exiled.API.Features.Doors;
 using ScpAgent.Bot.Sensors.Intefaces;
 using PlayerRoles;
+using MapGeneration.Holidays;
+using Exiled.API.Extensions;
 
 namespace ScpAgent.Bot.Sensors
 {
@@ -78,6 +80,10 @@ namespace ScpAgent.Bot.Sensors
         // Se llena la primera vez que se procesa cada puerta y se reutiliza
         public Dictionary<int, string> _doorColliderCache
             = new Dictionary<int, string>();
+        private readonly Dictionary<int, MemoriaJugador> _memoriaJugadores 
+            = new Dictionary<int, MemoriaJugador>();
+
+        private const float TIEMPO_OLVIDO = 5f;
 
         protected static readonly IComparer<RaycastHit> _raycastComparer =
             Comparer<RaycastHit>.Create((x, y) => x.distance.CompareTo(y.distance));
@@ -156,6 +162,7 @@ namespace ScpAgent.Bot.Sensors
             float relX = 0f, relY = 0f, relZ = 0f;
             AgentCacheData data = GetData();
             Vector3 relativePos = pos - data.center;
+            var faction = _player.Role.Team;
 
             if (data.halfX > 0) relX = Mathf.Clamp(relativePos.x / data.halfX, -1f, 1f);
             if (data.halfY > 0) relY = Mathf.Clamp(relativePos.y / data.halfY, -1f, 1f);
@@ -163,6 +170,8 @@ namespace ScpAgent.Bot.Sensors
 
             var observation = new AgentObservation
             {
+                Faction = faction,
+                FactionId = (float)faction/8f,
                 PosX = pos.x, PosY = pos.y, PosZ = pos.z,
                 RelX = relX,  RelY = relY,  RelZ = relZ,
                 GPSX = Mathf.Clamp(pos.x / RANGO_MAPA, -1f, 1f),
@@ -175,7 +184,7 @@ namespace ScpAgent.Bot.Sensors
                 LinVel    = vLin,
                 AngVelYaw   = angVelYaw,
                 AngVelPitch = angVelPitch,
-                Health      = _player.Health / 100,
+                Health      = _player.Health / _player.MaxHealth,
                 Zone        = _player.CurrentRoom?.Zone.ToString() ?? "Unknown",
                 Room        = _player.CurrentRoom?.Type.ToString() ?? "Unknown",
                 HasKeycard  = false,
@@ -185,7 +194,11 @@ namespace ScpAgent.Bot.Sensors
                 Done        = done
             };
 
-            _CargarElementosBase(pos, data.halfX, data.halfY, data.halfZ, observation, playerTier);
+            _ProcesarAimRaycast(observation);
+
+            _CargarElementosBaseCercanos(observation, pos, data.halfX, data.halfY, data.halfZ, playerTier);
+
+            _CargarPersonajesCercanos(observation, pos, 100);
 
             return observation;
         }
@@ -234,48 +247,40 @@ namespace ScpAgent.Bot.Sensors
         // ───────────────────────────────────────────────────────────────────────
         // ELEMENTOS CERCANOS
         // ───────────────────────────────────────────────────────────────────────
-        protected void _CargarElementosBase(Vector3 pos, float halfX, float halfY, float halfZ, AgentObservation obs, int playerTier)
+        private void _CargarElementosBaseCercanos(AgentObservation observation, Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
         {
-            if (halfX < 0.01f || halfY < 0.01f || halfZ < 0.01f)
-            {
-                _CopiarACache(obs);
-                return;
-            }
             _frameCounter++;
             if (_frameCounter < UPDATE_FREQUENCY)
             {
-                _CopiarACache(obs);
+                _CopiarACachePuertas(observation);
+                _CopiarACacheAscensores(observation);
+                _CopiarACacheHabitaciones(observation);
+                _CopiarACacheJugadores(observation);
                 return;
             }
-            float t0 = UnityEngine.Time.realtimeSinceStartup;
-        
-            _cachedNearDoors.Clear();
-            _cachedNearLifts.Clear();
-            _cachedNearRooms.Clear();
-            //_doorColliderCache.Clear();
             _frameCounter = 0;
-        
 
-            try { _CargarPuertas(pos, halfX, halfY, halfZ, playerTier); }
-            catch (Exception ex) { Log.Error($"[Sensors] AGENTE: {_agentId} ID PLAYER: {_player.Id} NULL en PUERTAS: {ex.Message}"); }
+            _doorColliderCache.Clear();
+            try { _CargarPuertas(observation, pos, halfX, halfY, halfZ, playerTier); }
+            catch (Exception ex) { 
+                Log.Error($"[Sensors] AGENTE: {_agentId} ID PLAYER: {_player.Id} NULL en PUERTAS: {ex.Message}");
+                Log.Error($"[Sensors] StackTrace: {ex.StackTrace}");
+             }
+            _CopiarACachePuertas(observation);
 
-            try { _CargarAscensores(pos, halfX, halfY, halfZ); }
+            //_cachedNearLifts.Clear();
+            try { _CargarAscensores(observation, pos, halfX, halfY, halfZ); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en ASCENSORES: {ex.Message}"); }
+            _CopiarACacheAscensores(observation);
 
-            try { _CargarRooms(playerTier); }
+            //_cachedNearRooms.Clear();
+            try { _CargarRooms(observation, playerTier); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en ROOMS: {ex.Message}"); }
-
-
-
-            
-            float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
-            //Log.Info($"Elapsed: {elapsed}");
-
-            _CopiarACacheBase(obs);
+            _CopiarACacheHabitaciones(observation);
         }
+        private void _CargarAscensores(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ)
+        {   
 
-        private void _CargarAscensores(Vector3 pos, float halfX, float halfY, float halfZ)
-        {
             if (_cachedLifts == null) _cachedLifts = new List<Lift>(Lift.List);
             else { _cachedLifts.Clear(); _cachedLifts.AddRange(Lift.List); }
         
@@ -304,7 +309,7 @@ namespace ScpAgent.Bot.Sensors
                 liftCount++;
             }
         }
-        private void _CargarRooms(int playerTier)
+        private void _CargarRooms(AgentObservation obs, int playerTier)
         {
             if (_cachedRooms == null)
                 _cachedRooms = new List<Room>(Room.List);
@@ -338,7 +343,7 @@ namespace ScpAgent.Bot.Sensors
             }
         }
 
-        private void _CargarPuertas(Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
+        private void _CargarPuertas(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
         {
             if (_cachedDoors != null && _cachedDoors.Count > 0)
             {
@@ -387,31 +392,38 @@ namespace ScpAgent.Bot.Sensors
             foreach (var (d, dist) in _doorsConDist)
             {
                 if (doorCount >= 15) break;
-                if (d.GameObject == null) continue;
+                if (d.GameObject == null) { Log.Warn("[Puertas] GameObject null en loop2"); continue; }
 
-                int doorId = d.GameObject.GetInstanceID();
-                // Collider name con caché por instanceID
+                int doorId;
+                try { doorId = d.GameObject.GetInstanceID(); }
+                catch (Exception ex) { Log.Warn($"[Puertas] GetInstanceID falló: {ex.Message}"); continue; }
+
                 if (!_doorColliderCache.TryGetValue(doorId, out string colliderName))
                 {
                     colliderName = "Unknown";
-                    if (d.GameObject != null)
+                    try
                     {
                         var colliders = d.GameObject.GetComponentsInChildren<Collider>(true);
                         var valid = System.Array.Find(colliders,
-                            c => !c.isTrigger &&
-                                !c.name.Contains("TouchScreenPanel") &&
-                                !c.name.Contains("Frame"));
+                            c => !c.isTrigger && !c.name.Contains("TouchScreenPanel") && !c.name.Contains("Frame"));
                         if (valid != null) colliderName = valid.name;
                     }
+                    catch (Exception ex) { Log.Warn($"[Puertas] GetComponentsInChildren falló: {ex.Message}"); }
                     _doorColliderCache[doorId] = colliderName;
                 }
         
-                int reqTier = GetDoorRequiredTier(d);
-        
+                int reqTier;
+                try { reqTier = GetDoorRequiredTier(d); }
+                catch (Exception ex) { Log.Warn($"[Puertas] GetDoorRequiredTier falló: {ex.Message}"); continue; }
+
+                string nombre, tipoStr;
+                try { nombre = d.Name; tipoStr = d.RequiredPermissions.ToString(); }
+                catch (Exception ex) { Log.Warn($"[Puertas] Name/RequiredPermissions falló: {ex.Message}"); continue; }
+
                 // Reutilizar objeto del pool en vez de new DoorData
                 var dd = _doorPool[doorCount];
                 dd.Type         = d.RequiredPermissions.ToString();
-                dd.Name         = d.Name;
+                dd.Name         = nombre;
                 dd.ColliderName = colliderName;
                 dd.Distance     = dist / 50f;
                 dd.RequiredTier = reqTier;
@@ -519,85 +531,140 @@ namespace ScpAgent.Bot.Sensors
             _CopiarCacheAObs(obs);
         }
 
-        private void _CargarPersonajesCercanos(Vector3 pos, float rangoRadar = 30f)
+        private void _CargarPersonajesCercanos(AgentObservation obs, Vector3 pos, float rangoRadar = 30f)
         {
             _listaTemporalPlayers.Clear();
             _cachedNearPlayers.Clear();
 
-            // Dirección hacia donde mira MI BOT (su cámara o su transform)
             Vector3 miMirada = _player.CameraTransform != null ? _player.CameraTransform.forward : _player.Transform.forward;
-            Vector3 misOjos   = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
+            Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
 
-            // 1. Filtrar jugadores que el bot REALMENTE puede ver
+            // Marcar todos como "no vistos este frame" antes de re-evaluar
+            foreach (var mem in _memoriaJugadores.Values)
+                mem.VistoEsteFrame = false;
+
+            // ── 1. Detección directa (visión + raycast) ─────────────────────────
             foreach (Player hub in Player.List)
             {
-                // Filtros básicos de estado
-                if (hub == null || hub == _player || !hub.IsAlive || hub.IsDead || hub.Role.Type == RoleTypeId.Spectator)
-                    continue;
+                if (hub == null || hub == _player || !hub.IsAlive || hub.IsDead ||
+                    hub.Role.Type == RoleTypeId.Spectator) continue;
+                if (hub.GameObject == null || hub.Transform == null) continue;
 
                 float d = Vector3.Distance(hub.Position, pos);
                 if (d > rangoRadar) continue;
 
-                // --- REGLA 1: ¿ESTÁ EN NUESTRO CONO DE VISIÓN? (FOV) ---
                 Vector3 dirHaciaEl = (hub.Position - pos).normalized;
-                float miProductoEscalar = Vector3.Dot(miMirada, dirHaciaEl);
+                if (Vector3.Dot(miMirada, dirHaciaEl) < 0.5f) continue;
 
-                // 0.5f equivale a un campo de visión (FOV) de 120 grados (60° a cada lado del centro)
-                // Si quieres que sea más estricto (ojo de humano enfocado), sube a 0.707f (90 grados totales)
-                if (miProductoEscalar < 0.5f) 
-                    continue; // Está detrás o muy en la periferia. El bot no sabe que existe.
-
-                // --- REGLA 2: ¿HAY LÍNEA DE VISIÓN LIMPIA? (RAYCAST) ---
                 Vector3 susOjos = hub.CameraTransform != null ? hub.CameraTransform.position : hub.Position + Vector3.up;
                 Vector3 dirRayo = susOjos - misOjos;
 
-                if (Physics.Raycast(misOjos, dirRayo.normalized, out RaycastHit hit, d + 0.5f))
+                if (Physics.Raycast(misOjos, dirRayo.normalized, out RaycastHit hit, d + 0.5f,
+                    ~0, QueryTriggerInteraction.Ignore))
                 {
-                    // Si el rayo choca con una pared o puerta antes de llegar al jugador objetivo...
                     if (hit.collider.gameObject != hub.GameObject && hit.transform.root != hub.Transform.root)
-                    {
-                        continue; // Hay un obstáculo bloqueando la vista. El bot no sabe que existe.
-                    }
+                        continue; // bloqueado por un obstáculo — no actualiza memoria
                 }
 
-                // Si pasa ambos filtros, el bot es consciente de su existencia y lo añade para evaluar cercanía
-                _listaTemporalPlayers.Add(new Actor { Player = hub, Distancia = d });
+                // Visto correctamente — actualizar/crear memoria
+                if (!_memoriaJugadores.TryGetValue(hub.Id, out var mem))
+                {
+                    mem = new MemoriaJugador();
+                    _memoriaJugadores[hub.Id] = mem;
+                }
+                mem.UltimaPosicion   = hub.Position;
+                mem.UltimoTimestamp  = Time.time;
+                mem.VistoEsteFrame   = true;
+
+                _listaTemporalPlayers.Add(new Actor { Player = hub, Distancia = d, EsRecordado = false });
             }
 
-            // 2. Ordenar los que SÍ vemos por cercanía (el peligro más cercano primero)
+            // ── 2. Añadir jugadores RECORDADOS (no vistos ahora pero dentro del tiempo de olvido) ──
+            var idsAEliminar = new List<int>();
+            foreach (var kv in _memoriaJugadores)
+            {
+                if (kv.Value.VistoEsteFrame) continue; // ya procesado arriba
+
+                float antiguedad = Time.time - kv.Value.UltimoTimestamp;
+                if (antiguedad > TIEMPO_OLVIDO)
+                {
+                    idsAEliminar.Add(kv.Key); // demasiado viejo, olvidar
+                    continue;
+                }
+
+                var playerObj = Player.Get(kv.Key);
+                if (playerObj == null || !playerObj.IsAlive)
+                {
+                    idsAEliminar.Add(kv.Key);
+                    continue;
+                }
+
+                float distRecordada = Vector3.Distance(kv.Value.UltimaPosicion, pos);
+                if (distRecordada > rangoRadar * 1.5f) continue; // demasiado lejos, no relevante
+
+                _listaTemporalPlayers.Add(new Actor {
+                    Player = playerObj,
+                    Distancia = distRecordada,
+                    EsRecordado = true,
+                    PosicionRecordada = kv.Value.UltimaPosicion,
+                    Antiguedad = antiguedad
+                });
+            }
+
+            foreach (var id in idsAEliminar)
+                _memoriaJugadores.Remove(id);
+
+            _cachedNearPlayers.Clear();
+            // ── 3. Ordenar y volcar al pool (igual que antes, con campo extra) ────
             _listaTemporalPlayers.Sort((a, b) => a.Distancia.CompareTo(b.Distancia));
 
-            // 3. Volcar los datos en el Pool (Máximo 5)
             int count = 0;
             int maxPlayers = Mathf.Min(_listaTemporalPlayers.Count, 5);
 
             for (int i = 0; i < maxPlayers; i++)
             {
-                var item = _listaTemporalPlayers[i];
+                var item   = _listaTemporalPlayers[i];
                 var target = item.Player;
-                var pd = _playerPool[count];
-                var role = target.Role.Type;
+                var pd     = _playerPool[count];
+                var role   = target.Role.Type;
 
-                pd.Role = role.ToString();
+                pd.Role      = role.ToString();
                 pd.FactionId = (int)role;
-                
-                Vector3 relPos = target.Position - pos;
+                pd.EsRecordado = item.EsRecordado;          // ← nuevo campo
+                pd.Antiguedad  = item.EsRecordado ? item.Antiguedad / TIEMPO_OLVIDO : 0f; // normalizado 0-1
+
+                Vector3 posReferencia = item.EsRecordado ? item.PosicionRecordada : target.Position;
+                Vector3 relPos = posReferencia - pos;
+
                 pd.Distance = item.Distancia / rangoRadar;
                 pd.RelX     = relPos.x / rangoRadar;
                 pd.RelY     = relPos.y / rangoRadar;
                 pd.RelZ     = relPos.z / rangoRadar;
-                pd.HealthPercent = target.MaxHealth > 0 ? (target.Health / target.MaxHealth) : 0f;
 
-                // Calculamos qué tan fijamente nos está mirando ÉL a NOSOTROS
-                Vector3 ojosEnemigo = target.CameraTransform != null ? target.CameraTransform.position : target.Position + Vector3.up;
-                Vector3 dirHaciaMi = (misOjos - ojosEnemigo).normalized;
-                Vector3 miradaEnemigo = target.CameraTransform != null ? target.CameraTransform.forward : target.Transform.forward;
-                
-                pd.MiradaHaciaMi = Vector3.Dot(miradaEnemigo, dirHaciaMi);
+                // Hostilidad y mirada solo tienen sentido si lo vemos AHORA
+                if (!item.EsRecordado)
+                {
+                    pd.Hostilidad = _calcularHostilidad(_player, target);
+                    pd.Health     = target.MaxHealth > 0 ? (target.Health / target.MaxHealth) : 0f;
+
+                    Vector3 ojosEnemigo  = target.CameraTransform != null ? target.CameraTransform.position : target.Position + Vector3.up;
+                    Vector3 dirHaciaMi   = (misOjos - ojosEnemigo).normalized;
+                    Vector3 miradaEnemigo = target.CameraTransform != null ? target.CameraTransform.forward : target.Transform.forward;
+                    pd.MiradaHaciaMi = Vector3.Dot(miradaEnemigo, dirHaciaMi);
+                }
+                else
+                {
+                    // Sin información actual — valores neutros
+                    pd.Hostilidad   = 0f;
+                    pd.Health       = -1f; // -1 indica "desconocido" para la red
+                    pd.MiradaHaciaMi = 0f;
+                }
 
                 _cachedNearPlayers.Add(pd);
                 count++;
             }
+            _CopiarACacheJugadores(obs);
+            
         }
         private int GetDoorRequiredTier(Door d)
         {
@@ -629,16 +696,27 @@ namespace ScpAgent.Bot.Sensors
 
         protected abstract void _CopiarACache(AgentObservation obs);
 
-        protected void _CopiarACacheBase(AgentObservation obs)
+        private void _CopiarACachePuertas(AgentObservation obs)
         {
             obs.NearDoors.Clear();
-            obs.NearLifts.Clear();
-            obs.NearRooms.Clear();
-        
             obs.NearDoors.AddRange(_cachedNearDoors);
+        }
+        private void _CopiarACacheAscensores(AgentObservation obs)
+        {
+            obs.NearLifts.Clear();
             obs.NearLifts.AddRange(_cachedNearLifts);
+        }
+        private void _CopiarACacheHabitaciones(AgentObservation obs)
+        {
+            obs.NearRooms.AddRange(_cachedNearRooms);
             obs.NearRooms.AddRange(_cachedNearRooms);
         }
+        private void _CopiarACacheJugadores(AgentObservation obs)
+        {
+            obs.NearPlayers.Clear();
+            obs.NearPlayers.AddRange(_cachedNearPlayers);
+        }
+
         
         // ── Actualizar InvalidarCachesMapa para incluir lockers ───────────────────
  
@@ -651,6 +729,16 @@ namespace ScpAgent.Bot.Sensors
         {
             _cachedNearPlayers.Clear();
             _listaTemporalPlayers.Clear();
+            _memoriaJugadores.Clear();
+            _cachedNearDoors.Clear();
+            _cachedNearRooms.Clear();
+            _doorsConDist.Clear();
+            _roomsPriorizada.Clear();
+            _cachedNearLifts.Clear();
+            _cachedDoors  = null;
+            _cachedLifts  = null;
+            _cachedRooms = null;
+            _doorColliderCache.Clear();
         }
         
 
@@ -662,6 +750,53 @@ namespace ScpAgent.Bot.Sensors
         }
 
         protected abstract void ObtenerListaSalasPriorizadas(int tierTarjeta);
+
+        private float _calcularHostilidad(Player player, Player objetivo)
+        {
+            Team faccionPlayer = player.Role.Team; 
+            Team faccionObjetivo = objetivo.Role.Team;
+
+        if (faccionPlayer == faccionObjetivo)
+            return -1.0f;
+
+        switch (faccionPlayer)
+        {
+        case PlayerRoles.Team.FoundationForces: // --- TU BOT ES NTF O GUARDIA ---
+            if (faccionObjetivo == PlayerRoles.Team.Scientists)       return -1.0f; // Aliado
+            if (faccionObjetivo == PlayerRoles.Team.ClassD)           return 0.0f;  // Neutral
+            if (faccionObjetivo == PlayerRoles.Team.ChaosInsurgency)  return 1.0f;  // Hostil
+            if (faccionObjetivo == PlayerRoles.Team.SCPs)             return 1.0f;  // Hostil
+            break;
+
+        case PlayerRoles.Team.ChaosInsurgency: // --- TU BOT ES CHAOS ---
+            if (faccionObjetivo == PlayerRoles.Team.ClassD)           return -1.0f; // Aliado
+            if (faccionObjetivo == PlayerRoles.Team.Scientists)       return 0.0f;  // Neutral
+            if (faccionObjetivo == PlayerRoles.Team.FoundationForces) return 1.0f;  // Hostil
+            if (faccionObjetivo == PlayerRoles.Team.SCPs)             return 1.0f;  // Hostil
+            break;
+
+        case PlayerRoles.Team.Scientists: // --- TU BOT ES CIENTÍFICO ---
+            if (faccionObjetivo == PlayerRoles.Team.FoundationForces) return -1.0f; // Aliado
+            if (faccionObjetivo == PlayerRoles.Team.ChaosInsurgency)  return 0.0f;  // Neutral
+            if (faccionObjetivo == PlayerRoles.Team.ClassD)           return 0.0f;  // Neutral
+            if (faccionObjetivo == PlayerRoles.Team.SCPs)             return 1.0f;  // Hostil
+            break;
+
+        case PlayerRoles.Team.ClassD: // --- TU BOT ES CLASE D ---
+            if (faccionObjetivo == PlayerRoles.Team.ChaosInsurgency)  return -1.0f; // Aliado
+            if (faccionObjetivo == PlayerRoles.Team.FoundationForces) return 0.0f;  // Neutral
+            if (faccionObjetivo == PlayerRoles.Team.Scientists)       return 0.0f;  // Neutral
+            if (faccionObjetivo == PlayerRoles.Team.SCPs)             return 1.0f;  // Hostil
+            break;
+        
+        case PlayerRoles.Team.SCPs: // --- TU BOT ES CLASE D ---
+            if (faccionObjetivo == PlayerRoles.Team.SCPs)  return -1.0f; // Aliado
+            else return 1.0f;
+            //break;
+        }
+
+        return 0.0f;
+        }
         
     }
 }
