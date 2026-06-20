@@ -1,6 +1,6 @@
 using System.Collections.Generic;
-using Newtonsoft.Json;
 using UnityEngine;
+using Exiled.API.Features;
 
 namespace ScpAgent.Bot.Data
 {
@@ -122,6 +122,7 @@ namespace ScpAgent.Bot.Data
     public class RoomData
     {
         public string Nombre { get; set; }
+        public int Id { get; set;}
         public float PosX { get; set; }
         public float PosY { get; set; }
         public float PosZ { get; set; }
@@ -138,6 +139,7 @@ namespace ScpAgent.Bot.Data
     public class Habitaciones
     {
         public string NombreHabitacion { get; set; }
+        public int IdHabitacion { get; set;}
         public Vector3 PosicionReal { get; set; }
         public float PosicionNormX { get; set; }
         public float PosicionNormY { get; set; }
@@ -154,14 +156,19 @@ namespace ScpAgent.Bot.Data
     public class ActorData
     {
         public string Role { get; set; }     // Ej: "ClassD", "Scp173", "Scientist"
+        public int FactionId { get; set;}
         public string Team { get; set; }     // Ej: "SCP", "Foundation", "Chaos"
         public float RelX { get; set; }
         public float RelY { get; set; }
         public float RelZ { get; set; }
         public float Distance { get; set; }
         public float HealthPercent { get; set; } // Útil para decidir si atacar o huir
-        public bool IsVisible { get; set; }      // ¿Está detrás de una pared? (Raycast)
+        public float MiradaHaciaMi { get; set; }
     }
 
-
+    public struct Actor
+    {
+        public Player Player;    // <--- ¡Asegúrate de que esta línea exista!
+        public float Distancia;
+    }
 }

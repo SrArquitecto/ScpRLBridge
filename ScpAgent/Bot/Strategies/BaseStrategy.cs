@@ -31,7 +31,8 @@ namespace ScpAgent.Bot.Strategies
 
         public virtual void OnUnbind()
         {
-            
+            _bot = null;
+            Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
         }
 
         public virtual void EjecutarAccionEspecial(int actionId, float deltaTime) {}
@@ -63,24 +64,24 @@ namespace ScpAgent.Bot.Strategies
             Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
             int pid = player.Id;
 
-            if (!AgentSensorsBase.agentCacheData.ContainsKey(pid))
-                AgentSensorsBase.agentCacheData[pid] = new AgentCacheData();
+            if (!BaseSensors.agentCacheData.ContainsKey(pid))
+                BaseSensors.agentCacheData[pid] = new AgentCacheData();
 
-            AgentSensorsBase.agentCacheData[pid].center = b.center;
-            AgentSensorsBase.agentCacheData[pid].halfX = b.size.x / 2f;
-            AgentSensorsBase.agentCacheData[pid].halfY = b.size.y / 2f;
-            AgentSensorsBase.agentCacheData[pid].halfZ = b.size.z / 2f;
-            AgentSensorsBase.agentCacheData[pid].IsDataReady   = true;           
+            BaseSensors.agentCacheData[pid].center = b.center;
+            BaseSensors.agentCacheData[pid].halfX = b.size.x / 2f;
+            BaseSensors.agentCacheData[pid].halfY = b.size.y / 2f;
+            BaseSensors.agentCacheData[pid].halfZ = b.size.z / 2f;
+            BaseSensors.agentCacheData[pid].IsDataReady   = true;           
         }
 
         public virtual void destroyBoundsCache(int idAntiguo, int idNuevo)
         {
             if (idAntiguo != idNuevo && idAntiguo >= 0)
             {
-                if (AgentSensorsBase.agentCacheData.TryGetValue(idAntiguo, out var datos))
+                if (BaseSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
                 {
-                    AgentSensorsBase.agentCacheData[idNuevo] = datos;
-                    AgentSensorsBase.agentCacheData.Remove(idAntiguo);
+                    BaseSensors.agentCacheData[idNuevo] = datos;
+                    BaseSensors.agentCacheData.Remove(idAntiguo);
                     Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
                 }
             }

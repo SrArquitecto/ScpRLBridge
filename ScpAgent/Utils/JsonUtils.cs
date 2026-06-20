@@ -111,7 +111,7 @@ public static class JsonUtils
         });
 
         AppendList(sb, "NearRooms", obs.NearRooms, (builder, r) => {
-            builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\",\"Dist\":"); AppendFloat(builder, r.Dist, 3);
+            builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\",\"Id\":").Append("\",\"Dist\":").Append(r.Id); AppendFloat(builder, r.Dist, 3);
             builder.Append(",\"Prioridad\":"); AppendFloat(builder, r.Prioridad, 1);
             builder.Append(",\"PosX\":"); AppendFloat(builder, r.PosX, 3);
             builder.Append(",\"PosY\":"); AppendFloat(builder, r.PosY, 3);

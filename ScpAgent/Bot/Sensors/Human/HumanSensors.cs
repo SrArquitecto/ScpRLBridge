@@ -10,16 +10,14 @@ using ScpAgent.Bot;
 using Exiled.API.Features.Lockers;
 using Exiled.API.Enums;
 using RemoteAdmin.Communication;
+using PlayerRoles;
 
 namespace ScpAgent.Bot.Sensors
 {
-    public class HumanSensors : AgentSensorsBase
+    public class HumanSensors : BaseSensors
     {
         // ── Player — NO readonly para poder actualizar tras respawn ────────────
-
-        private int _frameCounter = UPDATE_FREQUENCY;
-        private const int UPDATE_FREQUENCY = 20;
-       
+          
 
         // ── Caché del raycast de apuntado ───────────────────────────────────────
 
@@ -59,9 +57,7 @@ namespace ScpAgent.Bot.Sensors
 
         public override void Init()
         {
-            for (int i = 0; i < _doorPool.Length;    i++) _doorPool[i]    = new DoorData();
-            for (int i = 0; i < _liftPool.Length;    i++) _liftPool[i]    = new LiftData();
-            for (int i = 0; i < _roomPool.Length;    i++) _roomPool[i]    = new RoomData();
+
             for (int i = 0; i < _keycardPool.Length; i++) _keycardPool[i] = new KeycardData();
             for (int i = 0; i < _lockerPool.Length;  i++) _lockerPool[i]  = new LockerData();
         }
@@ -70,71 +66,31 @@ namespace ScpAgent.Bot.Sensors
         // MÉTODO PRINCIPAL
         // ───────────────────────────────────────────────────────────────────────
         public override AgentObservation GetCurrentState(
-            float fixedDelta, int accionAnterior, float reward, bool done)
-        {
+            float fixedDelta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
+        {   
             if (_player == null || !_player.IsAlive || _player.GameObject == null) 
                 return obsVacia;
 
             // Si la cámara aún no se ha creado en el nuevo cuerpo, abortamos este frame
             if (_player.CameraTransform == null) 
                 return obsVacia;
-            
-
-            Vector3 pos         = _player.Position;
-            Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
-            int     playerTier  = GetBestKeycardTier(_player);
-
-            // ── Velocidades angulares ──────────────────────────────────────────
-            float deltaYaw   = Mathf.DeltaAngle(_lastYaw,   camRotation.y);
-            float deltaPitch = Mathf.DeltaAngle(_lastPitch,  camRotation.x);
-            float angVelYaw   = deltaYaw   / fixedDelta;
-            float angVelPitch = deltaPitch / fixedDelta;
-            _lastYaw   = camRotation.y;
-            _lastPitch = camRotation.x;
-
-            // ── Velocidades lineales ───────────────────────────────────────────
-            float vLin, vLat, vVer;
-            _CalcularVelocidades(pos, fixedDelta, camRotation.y, out vLin, out vLat, out vVer);
-            bool intentaMoverse = (accionAnterior == 0 || accionAnterior == 1 || accionAnterior == 2 || accionAnterior == 3 || accionAnterior == 4);
-            
-            // ── Posición relativa dentro de la sala ────────────────────────────
-            float relX = 0f, relY = 0f, relZ = 0f;
-            AgentCacheData data;
-            if (_player == null || !agentCacheData.TryGetValue(_player.Id, out data) || !data.IsDataReady)
+            bool hasKeycard  = false;
+            playerTier  = 3;
+            if (role == RoleTypeId.Scientist || role == RoleTypeId.ClassD)
             {
-                data = _fallbackCacheData;
+                 hasKeycard = _player.Items.Any(i => _IsKeycard(i.Type));
+                 playerTier = GetBestKeycardTier(_player);
             }
 
-            Vector3 relativePos = pos - data.center;
+            AgentObservation observation = base.GetCurrentState(fixedDelta, accionAnterior, reward, done, role, playerTier);
 
-            if (data.halfX > 0) relX = Mathf.Clamp(relativePos.x / data.halfX, -1f, 1f);
-            if (data.halfY > 0) relY = Mathf.Clamp(relativePos.y / data.halfY, -1f, 1f);
-            if (data.halfZ > 0) relZ = Mathf.Clamp(relativePos.z / data.halfZ, -1f, 1f);
 
-            var observation = new AgentObservation
-            {
-                PosX = pos.x, PosY = pos.y, PosZ = pos.z,
-                RelX = relX,  RelY = relY,  RelZ = relZ,
-                GPSX = Mathf.Clamp(pos.x / RANGO_MAPA, -1f, 1f),
-                GPSY = Mathf.Clamp(pos.y / RANGO_MAPA, -1f, 1f),
-                GPSZ = Mathf.Clamp(pos.z / RANGO_MAPA, -1f, 1f),
-                Yaw   = camRotation.y,
-                Pitch = camRotation.x,
-                VerVel    = vVer,
-                LatVel    = vLat,
-                LinVel    = vLin,
-                AngVelYaw   = angVelYaw,
-                AngVelPitch = angVelPitch,
-                Health      = _player.Health,
-                Zone        = _player.CurrentRoom?.Zone.ToString() ?? "Unknown",
-                Room        = _player.CurrentRoom?.Type.ToString() ?? "Unknown",
-                HasKeycard  = _player.Items.Any(i => _IsKeycard(i.Type)),
-                KeycardTier = playerTier,
-                LastAction  = accionAnterior,
-                Reward      = reward,
-                Done        = done
-            };
+            Vector3 pos         = _player.Position;
+            AgentCacheData data = GetData();
             
+            observation.HasKeycard = hasKeycard;
+            observation.KeycardTier = playerTier;
+
             _CargarElementosCercanos(pos, data.halfX, data.halfY, data.halfZ, playerTier, observation);
             _ProcesarAimRaycast(observation);
 
@@ -183,21 +139,9 @@ namespace ScpAgent.Bot.Sensors
             try { _CargarKeycards(pos, halfX, halfY, halfZ); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en KEYCARDS: {ex.Message}"); }
 
-            try { _CargarPuertas(pos, halfX, halfY, halfZ, playerTier); }
-            catch (Exception ex) { Log.Error($"[Sensors] AGENTE: {_agentId} ID PLAYER: {_player.Id} NULL en PUERTAS: {ex.Message}"); }
-
-            try { _CargarAscensores(pos, halfX, halfY, halfZ); }
-            catch (Exception ex) { Log.Error($"[Sensors] NULL en ASCENSORES: {ex.Message}"); }
-
             try { _CargarLockers(pos, halfX, halfY, halfZ); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en LOCKERS: {ex.Message}"); }
-
-            try { _CargarRooms(playerTier); }
-            catch (Exception ex) { Log.Error($"[Sensors] NULL en ROOMS: {ex.Message}"); }
-
-
-
-            
+        
             float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
             //Log.Info($"Elapsed: {elapsed}");
             if (elapsed > 2f)
@@ -212,181 +156,49 @@ namespace ScpAgent.Bot.Sensors
             if (_cachedKeys == null) _cachedKeys = new List<Pickup>(Pickup.List);
             else { _cachedKeys.Clear(); _cachedKeys.AddRange(Pickup.List); }
         
+            var tarjetasPrioritarias = _cachedKeys
+            .Where(pk => pk != null && _IsKeycard(pk.Type) && pk.Transform != null && pk.IsSpawned)
+            .Select(pk => new 
+            { 
+                Tipo = pk.Type,
+                Pickup = pk, 
+                DistanciaReal = Vector3.Distance(pk.Transform.position, pos)/20,
+                RelX = (pk.Position.x - pos.x) / 20f,
+                RelY = (pk.Position.y - pos.y) / 20f,
+                RelZ = (pk.Position.z - pos.z) / 20f,
+                RealRelX = (pk.Position.x - pos.x),
+                RealRelY = (pk.Position.y - pos.y),
+                RealRelZ = (pk.Position.z - pos.z),
+                Tier = GetBestKeycardTier(pk.Type) // Evaluamos el peso/importancia de la tarjeta
+            })
+            .Where(x => x.DistanciaReal <= 20f)       // Filtro de rango de radar (20 metros)
+            .OrderByDescending(x => x.Tier)          // 1º Criterio: Mayor nivel primero (O5 > Scientist > Janitor)
+            .ThenBy(x => x.DistanciaReal)            // 2º Criterio: En caso de igual Tier, la más cercana primero
+            .Take(5)                                 // Nos quedamos estrictamente con las 5 mejores
+            .ToList();
+
+
             int keycardCount = 0;
-            foreach (var pk in _cachedKeys)
+            foreach (var pk in tarjetasPrioritarias)
             {
-                if (pk == null || !_IsKeycard(pk.Type) || keycardCount >= 5) continue;
-                if (pk.Transform == null) continue;
-                if (!pk.IsSpawned) continue;
-                float d = Vector3.Distance(pk.Transform.position, pos);
-                if (d > 20f) continue;
+                if (pk == null) continue;
         
                 // Reutilizar objeto del pool en vez de new KeycardData
                 var kd = _keycardPool[keycardCount];
-                kd.Type     = pk.Type.ToString();
-                kd.Distance = d / 20f;
-                kd.RelX     = Mathf.Clamp((pk.Position.x - pos.x) / halfX, -1f, 1f);
-                kd.RelY     = Mathf.Clamp((pk.Position.y - pos.y) / halfY, -1f, 1f);
-                kd.RelZ     = Mathf.Clamp((pk.Position.z - pos.z) / halfZ, -1f, 1f);
-                kd.RealRelX = pk.Position.x - pos.x;
-                kd.RealRelY = pk.Position.y - pos.y;
-                kd.RealRelZ = pk.Position.z - pos.z;
+                kd.Type     = pk.Tipo.ToString();
+                kd.Distance = pk.DistanciaReal;
+                kd.RelX = pk.RelX;
+                kd.RelY = pk.RelY;
+                kd.RelZ = pk.RelZ;
+                kd.RealRelX = pk.RealRelX;
+                kd.RealRelY = pk.RealRelY;
+                kd.RealRelZ = pk.RealRelZ;
                 _cachedNearKeycards.Add(kd);
                 keycardCount++;
             }
         }
 
-        private void _CargarRooms(int playerTier)
-        {
-            if (_cachedRooms == null)
-                _cachedRooms = new List<Room>(Room.List);
-
-            _roomsPriorizada.Clear();
-            ObtenerListaSalasPriorizadas(playerTier);
-            // ── SALAS PRIORIZADAS ─────────────────────────────────────────────────
-            //var habitaciones = ObtenerListaSalasPriorizadas(_player, playerTier);
-            int roomsCounter = 0;
-            foreach (var h in _roomsPriorizada)
-            {
-                if (h == null || roomsCounter >= 5) break;
-                if (h.PosicionReal == null) continue;
-                var r = _roomPool[roomsCounter];
-                r.Nombre    = h.NombreHabitacion;
-                r.PosX      = h.PosicionReal.x;
-                r.PosY      = h.PosicionReal.y;
-                r.PosZ      = h.PosicionReal.z;
-                r.NormX     = h.PosicionNormX;
-                r.NormY     = h.PosicionNormY;
-                r.NormZ     = h.PosicionNormZ;
-                r.UbiX      = h.PosicionUbiX;
-                r.UbiY      = h.PosicionUbiY;
-                r.UbiZ      = h.PosicionUbiZ;
-                r.Prioridad = h.Prioridad;
-                r.Dist      = h.Distancia;
-                r.DistNorm  = h.DistanciaNormalizada;
-                _cachedNearRooms.Add(r);
-                roomsCounter++;
-            }
-        }
-        private void _CargarPuertas(Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
-        {
-            if (_cachedDoors != null && _cachedDoors.Count > 0)
-            {
-                // Revisamos solo la primera puerta. Si su GameObject es nulo o fue destruido por Unity,
-                // significa que TODAS las puertas de la lista son de la ronda anterior.
-                var primeraPuerta = _cachedDoors[0];
-                
-                // Usamos try-catch rápido solo para la validación por si el wrapper de EXILED es muy estricto
-                bool cacheCaducada = false;
-                try 
-                {
-                    if (primeraPuerta == null || primeraPuerta.GameObject == null) cacheCaducada = true;
-                } 
-                catch 
-                { 
-                    cacheCaducada = true; 
-                }
-
-                if (cacheCaducada)
-                {
-                    // PURGAMOS TODA LA MEMORIA DE LA RONDA ANTERIOR
-                    _cachedDoors.Clear();
-                    _doorColliderCache.Clear(); 
-                    //Log.Debug("[Sensors] Caché de puertas invalidada por cambio de ronda.");
-                }
-            }
-            if (_cachedDoors == null || _cachedDoors.Count == 0)
-            {
-                _cachedDoors = new List<Door>(Door.List);
-                //Log.Info($"[Perf] Puertas cargadas: {_cachedDoors.Count}");
-            }
         
-            // Reutilizar lista de tuplas cacheada
-            _doorsConDist.Clear();
-            foreach (var d in _cachedDoors)
-            {   
-                if (d == null || d.Transform == null || d.GameObject == null) continue;
-                if (d == null) continue;
-                float dist = Vector3.Distance(d.Transform.position, pos);
-                if (dist < 50f) _doorsConDist.Add((d, dist));
-            }
-            //_doorsConDist.Sort((a, b) => a.dist.CompareTo(b.dist));
-            _doorsConDist.Sort(_doorComparison);
-        
-            int doorCount = 0;
-            foreach (var (d, dist) in _doorsConDist)
-            {
-                if (doorCount >= 15) break;
-                if (d.GameObject == null) continue;
-
-                int doorId = d.GameObject.GetInstanceID();
-                // Collider name con caché por instanceID
-                if (!_doorColliderCache.TryGetValue(doorId, out string colliderName))
-                {
-                    colliderName = "Unknown";
-                    if (d.GameObject != null)
-                    {
-                        var colliders = d.GameObject.GetComponentsInChildren<Collider>(true);
-                        var valid = System.Array.Find(colliders,
-                            c => !c.isTrigger &&
-                                !c.name.Contains("TouchScreenPanel") &&
-                                !c.name.Contains("Frame"));
-                        if (valid != null) colliderName = valid.name;
-                    }
-                    _doorColliderCache[doorId] = colliderName;
-                }
-        
-                int reqTier = GetDoorRequiredTier(d);
-        
-                // Reutilizar objeto del pool en vez de new DoorData
-                var dd = _doorPool[doorCount];
-                dd.Type         = d.RequiredPermissions.ToString();
-                dd.Name         = d.Name;
-                dd.ColliderName = colliderName;
-                dd.Distance     = dist / 50f;
-                dd.RequiredTier = reqTier;
-                dd.CanOpen      = playerTier >= reqTier;
-                dd.IsOpen       = d.IsOpen;
-                dd.RelX         = Mathf.Clamp((d.Position.x - pos.x) / halfX, -1f, 1f);
-                dd.RelY         = Mathf.Clamp((d.Position.y - pos.y) / halfY, -1f, 1f);
-                dd.RelZ         = Mathf.Clamp((d.Position.z - pos.z) / halfZ, -1f, 1f);
-                dd.RealRelX     = d.Position.x - pos.x;
-                dd.RealRelY     = d.Position.y - pos.y;
-                dd.RealRelZ     = d.Position.z - pos.z;
-                _cachedNearDoors.Add(dd);
-                doorCount++;
-            }
-        }
-        private void _CargarAscensores(Vector3 pos, float halfX, float halfY, float halfZ)
-        {
-            if (_cachedLifts == null) _cachedLifts = new List<Lift>(Lift.List);
-            else { _cachedLifts.Clear(); _cachedLifts.AddRange(Lift.List); }
-        
-            int liftCount = 0;
-            foreach (var l in _cachedLifts)
-            {
-                if (l == null || liftCount >= 3) break;
-                if (l.Transform == null) continue;
-                float d = Vector3.Distance(l.Transform.position, pos);
-                if (d > 50f) continue;
-        
-                // Reutilizar objeto del pool en vez de new LiftData
-                var ld = _liftPool[liftCount];
-                ld.Type         = l.Type.ToString();
-                ld.Distance     = d / 50f;
-                ld.IsMoving     = l.IsMoving;
-                ld.CanUse       = !l.IsMoving;
-                ld.CurrentLevel = l.CurrentLevel;
-                ld.RelX         = Mathf.Clamp((l.Position.x - pos.x) / halfX, -1f, 1f);
-                ld.RelY         = Mathf.Clamp((l.Position.y - pos.y) / halfY, -1f, 1f);
-                ld.RelZ         = Mathf.Clamp((l.Position.z - pos.z) / halfZ, -1f, 1f);
-                ld.RealRelX     = l.Position.x - pos.x;
-                ld.RealRelY     = l.Position.y - pos.y;
-                ld.RealRelZ     = l.Position.z - pos.z;
-                _cachedNearLifts.Add(ld);
-                liftCount++;
-            }
-        }
         private void _CargarLockers(Vector3 pos, float halfX, float halfY, float halfZ)
         {
             if (_cachedLockers == null)
@@ -408,9 +220,9 @@ namespace ScpAgent.Bot.Sensors
                 lkd.Type      = l.Type.ToString();
                 lkd.Distance  = d / 25f;
                 lkd.HasIsOpen = false; // Locker EXILED no tiene IsOpen global — es por chamber
-                lkd.RelX      = Mathf.Clamp((l.Position.x - pos.x) / halfX, -1f, 1f);
-                lkd.RelY      = Mathf.Clamp((l.Position.y - pos.y) / halfY, -1f, 1f);
-                lkd.RelZ      = Mathf.Clamp((l.Position.z - pos.z) / halfZ, -1f, 1f);
+                lkd.RelX = (l.Position.x - pos.x) / 25f;
+                lkd.RelY = (l.Position.y - pos.y) / 25f;
+                lkd.RelZ = (l.Position.z - pos.z) / 25f;
                 lkd.RealRelX  = l.Position.x - pos.x;
                 lkd.RealRelY  = l.Position.y - pos.y;
                 lkd.RealRelZ  = l.Position.z - pos.z;
@@ -426,17 +238,10 @@ namespace ScpAgent.Bot.Sensors
 
         protected override void _CopiarACache(AgentObservation obs)
         {
-            obs.NearDoors.Clear();
             obs.NearKeycards.Clear();
-            obs.NearLifts.Clear();
             obs.NearLockers.Clear();
-            obs.NearRooms.Clear();
-        
-            obs.NearDoors.AddRange(_cachedNearDoors);
             obs.NearKeycards.AddRange(_cachedNearKeycards);
-            obs.NearLifts.AddRange(_cachedNearLifts);
             obs.NearLockers.AddRange(_cachedNearLockers);
-            obs.NearRooms.AddRange(_cachedNearRooms);
         }
         
         public override void ResetEstado()
@@ -519,21 +324,31 @@ namespace ScpAgent.Bot.Sensors
             }
             return tier;
         }     // implementa tu lógica
-        private bool IsKeycardTypeName(string itemTypeName) => itemTypeName?.IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
-        private int GetDoorRequiredTier(Door d)
+        private int GetBestKeycardTier(ItemType p)
         {
-            var perms = (int)d.RequiredPermissions;
-            if (perms == 0)        return 0;
-            if ((perms & 64)  != 0) return 7;
-            if ((perms & 128) != 0) return 7;
-            if ((perms & 16)  != 0) return 5;
-            if ((perms & 32)  != 0) return 5;
-            if ((perms & 4)   != 0) return 3;
-            if ((perms & 8)   != 0) return 3;
-            if ((perms & 2)   != 0) return 4;
-            if ((perms & 256) != 0) return 6;
-            return 1;
-        }    // implementa tu lógica
+            int t = 0;
+            switch (p)
+            {
+                case ItemType.KeycardJanitor:             t = 1; break;
+                case ItemType.KeycardGuard:               t = 4; break;
+                case ItemType.KeycardScientist:           t = 2; break;
+                case ItemType.KeycardResearchCoordinator: t = 3; break;
+                case ItemType.KeycardChaosInsurgency:     t = 5; break;
+                case ItemType.KeycardMTFPrivate:          t = 5; break;
+                case ItemType.KeycardMTFOperative:        t = 6; break;
+                case ItemType.KeycardMTFCaptain:          t = 7; break;
+                case ItemType.KeycardZoneManager:         t = 8; break;
+                case ItemType.KeycardO5:                  t = 9; break;
+                default:
+                    t = 1;
+                    break;
+            }
+                
+            return t;
+        }     // implementa tu lógica
+
+        private bool IsKeycardTypeName(string itemTypeName) => itemTypeName?.IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
+   // implementa tu lógica
         protected override void ObtenerListaSalasPriorizadas(int tierTarjeta)
         {
             //List<Habitaciones> listaPriorizada = new List<Habitaciones>();
@@ -603,6 +418,7 @@ namespace ScpAgent.Bot.Sensors
                 _roomsPriorizada.Add(new Habitaciones
                 {
                     NombreHabitacion = sala.Type.ToString(),
+                    IdHabitacion = (int)sala.Type,
                     PosicionReal = sala.Position,
                     PosicionNormX = dirNormalizada.x,
                     PosicionNormY = dirNormalizada.y,

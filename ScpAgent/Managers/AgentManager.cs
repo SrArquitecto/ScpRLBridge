@@ -10,7 +10,7 @@ using ScpAgent.Bot.Sensors;
 using ScpAgent.Bot.Simulation;
 using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Strategies.Interfaces;
-using ScpAgent.Bot.Strategies;
+using ScpAgent.Bot.Strategies.Human;
 using ScpAgent.Managers.Data;
 using ScpAgent.Network;
 using ScpAgent.Network.Event;

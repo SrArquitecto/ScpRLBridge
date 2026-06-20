@@ -552,7 +552,7 @@ namespace ScpAgent.Network
 
         private void _EnviarObservacionVacia(int agentId)
         {
-            AgentObservation obs = AgentSensorsBase.obsVacia;
+            AgentObservation obs = BaseSensors.obsVacia;
 
             string json = JsonUtils.ToJson(obs);
 

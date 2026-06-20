@@ -8,7 +8,7 @@ using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Strategies.Interfaces;
 using PlayerRoles;
 using System;
-using ScpAgent.Bot.Strategies;
+using ScpAgent.Bot.Strategies.Human;
 using ScpAgent.Bot.Sensors;
 
 namespace ScpAgent.Managers.Data

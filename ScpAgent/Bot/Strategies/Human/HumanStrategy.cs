@@ -7,7 +7,7 @@ using UnityEngine;
 using ScpAgent.Bot.Strategies;
 using ScpAgent.Bot.Interfaces;
 
-namespace ScpAgent.Bot.Strategies
+namespace ScpAgent.Bot.Strategies.Human
 {
     public abstract class HumanStrategy : BaseStrategy
     {

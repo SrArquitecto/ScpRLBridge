@@ -10,15 +10,12 @@ using MEC;
 using ScpAgent.Bot.Data;
 using ScpAgent.Bot.Interfaces;
 using ScpAgent.Bot.Strategies.Interfaces;
-
 using ScpAgent.Bot.Simulation;
 using Exiled.API.Features.Doors;
-using Exiled.Events.EventArgs.Player;
-using Exiled.API.Enums;
 using ScpAgent.Managers;
 using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Sensors;
-using ScpAgent.Bot.Strategies;
+
 
 
 
@@ -223,38 +220,40 @@ namespace ScpAgent.Bot
                 if (ExiledPlayer == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: ExiledPlayer es NULL");
-                    return AgentSensorsBase.obsVacia;
+                    return BaseSensors.obsVacia;
                 }
 
                 if (!ExiledPlayer.IsAlive)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: IsAlive=False Role={ExiledPlayer.Role.Type}");
-                    return AgentSensorsBase.obsVacia;
+                    return BaseSensors.obsVacia;
                 }
 
                 if (ExiledPlayer.GameObject == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: GameObject es NULL");
-                    return AgentSensorsBase.obsVacia;
+                    return BaseSensors.obsVacia;
                 }
 
                 if (ExiledPlayer.CameraTransform == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: CameraTransform es NULL");
-                    return AgentSensorsBase.obsVacia;
+                    return BaseSensors.obsVacia;
                 }
 
                 if (_sensores == null)
                 {
                     Log.Warn($"[Bot {AgentId}] GetObs: _sensores es NULL");
-                    return AgentSensorsBase.obsVacia;
+                    return BaseSensors.obsVacia;
                 }
 
             return _sensores.GetCurrentState(
                 fixedDelta: delTime,
                 accionAnterior: _ultimaAccion,
                 reward:   ConsumirRecompensa(),
-                done:     EpisodioTerminado
+                done:     EpisodioTerminado,
+                rol,
+                0
             );
         }
 

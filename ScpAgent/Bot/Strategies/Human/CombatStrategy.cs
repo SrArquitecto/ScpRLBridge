@@ -6,7 +6,7 @@ using PlayerRoles;
 using UnityEngine;
 using ScpAgent.Bot.Strategies.Interfaces;
 
-namespace ScpAgent.Bot.Strategies
+namespace ScpAgent.Bot.Strategies.Human
 {
     public class CombatStrategy : HumanStrategy
     {
