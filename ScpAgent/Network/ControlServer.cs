@@ -15,7 +15,7 @@ using MEC;
 using ScpAgent.Bot.Interfaces;
 using UnityEngine;
 using ScpAgent.Bot.Sensors;
-
+using ScpAgent.Network.Event;
 
 namespace ScpAgent.Network
 {
@@ -44,7 +44,7 @@ namespace ScpAgent.Network
         public bool IsPythonConnected { get; private set; } = false;
         public event Action AllAgentsReady;
         private readonly ConcurrentDictionary<int, SemaphoreSlim> _outgoingSignals = new ConcurrentDictionary<int, SemaphoreSlim>();
-
+        public static event System.EventHandler<AgentHandshakeEventArgs> AgentHandshakeReceived;
         public int _frameCount = 0;
         public ControlServer()
         {
@@ -247,52 +247,63 @@ namespace ScpAgent.Network
                     reader.Dispose(); writer.Dispose(); stream.Dispose(); cliente.Close();
                     return;
                 }
-                else if (handshake.StartsWith("INIT_") && int.TryParse(handshake.Substring(5), out int agentId))
+                else if (handshake.StartsWith("INIT_"))
                 {
-                    if (_clientes.ContainsKey(agentId)) 
-                    {
-                        Log.Warn($"[ControlServer] Agente {agentId} ya registrado. Rechazando.");
-                        cliente.Close();
-                        return;
-                    }
+                    string[] partes = handshake.Split('_');
 
-                    // 1. ENVIAR RESPUESTA MANDATORIA SÍNCRONA
-                    try 
+                    if (partes.Length == 3 && int.TryParse(partes[1], out int agentId))
                     {
-                        // En lugar de usar cliente.Client.Send, usamos el escritor que ya tenemos arriba de forma limpia
-                        await writer.WriteLineAsync("REGISTERED");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error($"[ControlServer] Fallo crítico enviando REGISTERED al agente {agentId}: {ex.Message}");
-                        cliente.Close();
-                        return;
-                    }
+                        string nombreRol = partes[2].Trim();
+                        if (_clientes.ContainsKey(agentId)) 
+                        {
+                            Log.Warn($"[ControlServer] Agente {agentId} ya registrado. Rechazando.");
+                            cliente.Close();
+                            return;
+                        }
 
-                    // 2. REGISTRAR ESTRUCTURAS REUTILIZANDO EL WRITER EXISTENTE
-                    _clientes[agentId]  = cliente;
-                    _incoming[agentId]  = new ConcurrentQueue<string>();
-                    _outgoing[agentId]  = new ConcurrentQueue<string>();
-                    _outgoingSignals[agentId] = new SemaphoreSlim(0);
-                    
-                    // 🌟 REUTILIZACIÓN CRÍTICA: Guardamos el escritor original. Ya no fallará con "Stream was not writable"
-                    _writers[agentId]   = writer; 
+                        // 1. ENVIAR RESPUESTA MANDATORIA SÍNCRONA
+                        try 
+                        {
+                            // En lugar de usar cliente.Client.Send, usamos el escritor que ya tenemos arriba de forma limpia
+                            await writer.WriteLineAsync("REGISTERED");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"[ControlServer] Fallo crítico enviando REGISTERED al agente {agentId}: {ex.Message}");
+                            cliente.Close();
+                            return;
+                        }
 
-                    Log.Debug($"[ControlServer] Agente {agentId} registrado correctamente y listo.");
+                        // 2. REGISTRAR ESTRUCTURAS REUTILIZANDO EL WRITER EXISTENTE
+                        _clientes[agentId]  = cliente;
+                        _incoming[agentId]  = new ConcurrentQueue<string>();
+                        _outgoing[agentId]  = new ConcurrentQueue<string>();
+                        _outgoingSignals[agentId] = new SemaphoreSlim(0);
+                        
+                        // 🌟 REUTILIZACIÓN CRÍTICA: Guardamos el escritor original. Ya no fallará con "Stream was not writable"
+                        _writers[agentId]   = writer; 
 
-                    if (_clientes.Count >= NumAgentsExpected && !Initialized)
-                    {
-                        Initialized = true;
-                        Log.Debug("[ControlServer] ✅ Todos los agentes conectados de forma segura.");
-                        IsPythonConnected = true;
-                        MEC.Timing.RunCoroutine(_DispararEventoCreacion());
+                            // Disparamos de forma segura (si hay alguien suscrito)
+                        AgentHandshakeReceived?.Invoke(this, new AgentHandshakeEventArgs(agentId, nombreRol));
+
+                        
+
+                        Log.Debug($"[ControlServer] Agente {agentId} registrado correctamente y listo.");
+
+                        if (AgentManager.Instance.GetLength() >= NumAgentsExpected && !Initialized)
+                        {
+                            Initialized = true;
+                            Log.Debug("[ControlServer] ✅ Todos los agentes conectados de forma segura.");
+                            IsPythonConnected = true;
+                            MEC.Timing.RunCoroutine(_DispararEventoCreacion());
+                        }
+                        // 3. ENTRAR EN LOS BUCLES ASÍNCRONOS
+                        // 🌟 REUTILIZACIÓN CRÍTICA: Pasamos el 'reader' original para NO perder los datos del buffer
+                        await Task.WhenAll(
+                            LeerAsync(agentId, reader), 
+                            EscribirAsync(agentId)
+                        );
                     }
-                    // 3. ENTRAR EN LOS BUCLES ASÍNCRONOS
-                    // 🌟 REUTILIZACIÓN CRÍTICA: Pasamos el 'reader' original para NO perder los datos del buffer
-                    await Task.WhenAll(
-                        LeerAsync(agentId, reader), 
-                        EscribirAsync(agentId)
-                    );
                 }
                 // ── CONEXIÓN PERSISTENTE DE AGENTE "INIT_" (Larga: delega su ciclo de vida) ─────
                 else
@@ -443,10 +454,7 @@ namespace ScpAgent.Network
                         return; // lambda equivale a continue
                     try
                     {
-                        if (++_frameCount % 1000 == 0)
-                        {
 
-                        }
                         _ProcesarMensaje(bot, msg, agentId, deltaTime);
                     }
                     catch (Exception ex)
@@ -469,38 +477,54 @@ namespace ScpAgent.Network
 
         private void _ProcesarMensaje(IAgentController bot, string msg, int agentId, float deltaTime)
         {
-            if (bot.ExiledPlayer == null || !bot.ExiledPlayer.IsAlive)
-            {
-                // Devolver estado vacío para no dejar a Python esperando
-                _EnviarObservacionVacia(agentId);
-                return;
-            }
-            if (msg == "RESPAWN")
-            {
-                bot.EjecutarRespawn();
-                // Responder con estado vacío mientras el respawn se completa
-                _EnviarObservacionVacia(agentId);
-                return;
-            }
+            try {
+                try
+                {
+                    if (bot.ExiledPlayer == null || 
+                        !bot.ExiledPlayer.IsAlive || 
+                        bot.ExiledPlayer.GameObject == null)
+                    {
+                        _EnviarObservacionVacia(agentId);
+                        return;
+                    }
+                }
+                catch
+                {
+                    _EnviarObservacionVacia(agentId);
+                    return;
+                }
+                if (msg == "RESPAWN")
+                {
+                    bot.EjecutarRespawn();
+                    // Responder con estado vacío mientras el respawn se completa
+                    _EnviarObservacionVacia(agentId);
+                    return;
+                }
 
-            if (msg.StartsWith("ACTION:"))
-            {
-                if (int.TryParse(msg.Substring(7), out int actionId))
-                    bot.ReceiveAction(new AgentAction { ActionId = actionId });
+                if (msg.StartsWith("ACTION:"))
+                {
+                    if (int.TryParse(msg.Substring(7), out int actionId))
+                        bot.ReceiveAction(new AgentAction { ActionId = actionId });
 
-                bot.ActualizarFisica(FIXED_DELTA);
-            }
-            else if (msg == "GET_STATE")
-            {
-                // NOOP — solo devolver estado actual sin mover
-            }
-            else
-            {
-                Log.Debug($"[ControlServer] Mensaje desconocido de Agente {agentId}: '{msg}'");
-                return;
-            }
+                    bot.ActualizarFisica(deltaTime);
+                }
+                else if (msg == "GET_STATE")
+                {
+                    // NOOP — solo devolver estado actual sin mover
+                }
+                else
+                {
+                    Log.Debug($"[ControlServer] Mensaje desconocido de Agente {agentId}: '{msg}'");
+                    return;
+                }
 
-            _EnviarObservacion(bot, agentId, deltaTime);
+                _EnviarObservacion(bot, agentId, deltaTime);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[ControlServer] Error Agente {agentId} ('{msg}'): {ex.Message}");
+                Log.Warn($"[ControlServer] StackTrace: {ex.StackTrace}");
+            }
         }
 
         /// <summary>
@@ -510,7 +534,9 @@ namespace ScpAgent.Network
         {
             AgentObservation obs = bot.GetObservation(deltaTime);
             string json = JsonUtils.ToJson(obs);
-
+            if (_frameCount % 500 == 0)
+                Log.Info($"[Perf] JSON size Agente {agentId}: {json.Length} chars");
+            
             if (json.Contains(",]"))
                 Log.Warn("JSON INVALIDO DETECTADO: " + json);
 

@@ -23,6 +23,7 @@ namespace ScpAgent.Managers
         public bool BotsListos { get; private set; } = false;
         private CoroutineHandle _monitorHandle;
         private bool _firstSpawn = true;
+        private bool _firstInstance = true;
 
         // Cambiamos StateManager por nuestro diccionario definitivo de agentes de IA
         //public Dictionary<int, Bot.ScpAgentBot> BotsActivos { get; private set; } = new Dictionary<int, Bot.ScpAgentBot>();
@@ -59,7 +60,7 @@ namespace ScpAgent.Managers
         private void SpawnearAgentes()
         {
             if (_plugin.AgentManager.NumAgentes == 0 && _firstSpawn == true) {
-                _plugin.AgentManager.Inicializar(_plugin.ControlServer.NumAgentsExpected);
+                _plugin.AgentManager.Inicializar();
                 _firstSpawn = false;
                 //Log.Debug("Inicializado por primera vez --------------------------------------------------------------------------------");
             }
@@ -82,16 +83,16 @@ namespace ScpAgent.Managers
 
         private void OnWaitingForPlayers()
         {   
-            if (_isSpawning) return;
-            _isSpawning = true;
-            _roundEnding = false;
-            
-            if(_plugin.AgentManager.NumAgentes > 0)
-                AgentManager.Instance.ResetearTodos(); 
-
-
-            if (_plugin.ControlServer.IsPythonConnected)
+            if (_plugin.ControlServer.IsPythonConnected && !_firstInstance)
             {
+                if (_isSpawning) return;
+                _isSpawning = true;
+                _roundEnding = false;
+                
+                //Trasladado a ONRouondEnded
+                //if(_plugin.AgentManager.NumAgentes > 0)
+                    //AgentManager.Instance.ResetearTodos(); 
+
                 Timing.RunCoroutine(DelayedSpawnSequence());
             }
             else
@@ -103,6 +104,7 @@ namespace ScpAgent.Managers
         private void OnAllAgentReady()
         {
             _plugin.ControlServer.AllAgentsReady -= OnAllAgentReady;
+            _firstInstance = false;
             Timing.RunCoroutine(DelayedSpawnSequence());
         }
 
@@ -111,6 +113,13 @@ namespace ScpAgent.Managers
             // Esperamos 3 segundos a que Unity asiente las estructuras y pasillos generados
             yield return Timing.WaitForSeconds(3.0f); 
 
+            while (AgentManager.Instance.GetLength() < _plugin.ControlServer.NumAgentsExpected)
+            {
+                Log.Info("ESPERANDO AL RESTO DE AGENTES");
+                //yield return Timing.WaitForSeconds(1.0f); 
+            }
+
+            Log.Info("[RoundManager] Red de simulación detectada. Instanciando 4 agentes...");
             SpawnearAgentes();
             Log.Debug("[RoundManager] Red de simulación detectada. Instanciando 4 agentes...");
             
@@ -176,6 +185,7 @@ namespace ScpAgent.Managers
 
             // Apagamos el bucle central de control TCP inmediatamente para evitar lecturas fantasmas
             _plugin.ControlServer.DetenerEntrenamiento();
+            AgentManager.Instance.ResetearTodos(); 
             System.GC.Collect();
             Log.Debug("[RoundManager] Solicitando restablecimiento completo del mapa a EXILED...");
             Round.Restart(false, true);

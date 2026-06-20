@@ -1,17 +1,16 @@
 using Exiled.API.Features;
 using PlayerRoles;
+using ScpAgent.Bot.Interfaces;
 
 namespace ScpAgent.Bot.Strategies.Interfaces
 {
     public interface IAgentRoleStrategy
     {
         RoleTypeId Role { get; }
-        void OnBind(ScpAgentBot bot, Player player);
-
-        // Limpia las suscripciones para evitar fugas de memoria (Memory Leaks)
+        void OnBind(IAgentController bot);
         void OnUnbind();
-
-        // Ejecuta acciones que sean exclusivas de este rol (ej: usar tarjeta o habilidades SCP)
+        void addBoundsToCache(Player player);
+        void destroyBoundsCache(int idAntiguo, int idNuevo);
         void EjecutarAccionEspecial(int actionId, float deltaTime);
     }
 }

@@ -12,6 +12,7 @@ namespace ScpAgent.Bot.Sensors
     {
         // ── Player — NO readonly para poder actualizar tras respawn ────────────
         protected Player _player;
+        protected int _agentId;
         public static readonly AgentObservation obsVacia = new AgentObservation { Done = true };
         protected const float RANGO_MAPA     = 500f;
         protected const int   AIM_CACHE_FRAMES = 5;
@@ -81,15 +82,14 @@ namespace ScpAgent.Bot.Sensors
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
-        public AgentSensorsBase()
+        public AgentSensorsBase(int agentId)
         {
+            _agentId = agentId;
             //_RefrescarPosicionBase();
             //_player = player;
-            for (int i = 0; i < _doorPool.Length;    i++) _doorPool[i]    = new DoorData();
-            for (int i = 0; i < _liftPool.Length;    i++) _liftPool[i]    = new LiftData();
-            for (int i = 0; i < _roomPool.Length;    i++) _roomPool[i]    = new RoomData();
-
         }
+
+        public abstract void Init();
 
         /// <summary>
         /// Actualiza la referencia al jugador tras un respawn sin recrear la instancia.

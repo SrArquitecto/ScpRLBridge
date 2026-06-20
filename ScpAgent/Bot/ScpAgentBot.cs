@@ -18,6 +18,8 @@ using Exiled.API.Enums;
 using ScpAgent.Managers;
 using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Sensors;
+using ScpAgent.Bot.Strategies;
+
 
 
 namespace ScpAgent.Bot
@@ -34,6 +36,9 @@ namespace ScpAgent.Bot
         // ── Identidad ───────────────────────────────────────────────────────────
         public int AgentId { get; private set; }
         public Player ExiledPlayer { get; set; }
+        public IAgentRoleStrategy Strategy;
+        public RoleTypeId rol;
+        public string Nickname;
 
         // ── Estado de la acción ─────────────────────────────────────────────────
         private int _ultimaAccion = 12; // 12 = NOOP
@@ -44,7 +49,7 @@ namespace ScpAgent.Bot
 
         // ── Recompensa y estado de episodio ─────────────────────────────────────
         public float PendingReward { get; set; } = 0f;
-        public bool EpisodioTerminado { get; private set; } = false;
+        public bool EpisodioTerminado { get; set; } = false;
 
         // ── Referencia al GameObject (no cambia aunque el wrapper Player quede stale) ──
         private GameObject _botGameObject;
@@ -67,23 +72,31 @@ namespace ScpAgent.Bot
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
-        public ScpAgentBot(string nickname, int id, FakeConnection fakeConn, RoleTypeId role = RoleTypeId.ClassD)
+        public ScpAgentBot(string nickname, int id, IAgentRoleStrategy strategy, RoleTypeId role = RoleTypeId.ClassD)
         {
             AgentId   = id;
-            _fakeConn = fakeConn; // ← recibida desde AgentManager, no creada aquí
-
+            Nickname = nickname;
+            Strategy = strategy;
+            //_fakeConn = fakeConn; // ← recibida desde AgentManager, no creada aquí
+            rol = role;
+            
             // 1. Clonar el prefab del jugador
+        }
+
+        public void Init(FakeConnection fakeConn)
+        {
+            _fakeConn = fakeConn;
             GameObject prefab = NetworkManager.singleton.playerPrefab;
             _botGameObject = UnityEngine.Object.Instantiate(prefab);
 
             // 2. Vincular con el servidor de red de Mirror
             ReferenceHub hub = _botGameObject.GetComponent<ReferenceHub>();
             NetworkServer.AddPlayerForConnection(_fakeConn, _botGameObject);
-            hub.nicknameSync.Network_myNickSync = nickname;
+            hub.nicknameSync.Network_myNickSync = Nickname;
 
             // 3. Obtener wrapper inicial y asignar rol
             ExiledPlayer = Player.Get(_botGameObject);
-            ExiledPlayer.Role.Set(role);
+            ExiledPlayer.Role.Set(rol);
 
             // 4. Añadir CharacterController inmediatamente (no esperar al delay)
             _cc = _botGameObject.GetComponent<CharacterController>();
@@ -96,7 +109,7 @@ namespace ScpAgent.Bot
                 if (freshPlayer != null)
                 {
                     ExiledPlayer = freshPlayer;
-                    Log.Debug($"[ScpAgentBot] Bot {AgentId} ({nickname}) — wrapper refrescado. " +
+                    Log.Debug($"[ScpAgentBot] Bot {AgentId} ({Nickname}) — wrapper refrescado. " +
                             $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
                 }
                 else
@@ -109,14 +122,15 @@ namespace ScpAgent.Bot
                 _InicializarMouseLook();
 
                 // 7. Suscribir eventos de recompensa
-                SuscribirEventos();
-                _addBoundsToCache(ExiledPlayer);
+                
+                Strategy.addBoundsToCache(ExiledPlayer);
 
                 // 8. Notificar al AgentManager — activa el slot y vincula sensores
                 // AgentSensors.VincularPlayer() se llama desde AgentSlot.OnSpawnComplete()
                 AgentManager.Instance?.OnBotSpawnComplete(AgentId, ExiledPlayer);
             });
         }
+
 
         public void SetPlayer(Player exiledPlayer)
         {
@@ -168,7 +182,6 @@ namespace ScpAgent.Bot
             }
             Timing.KillCoroutines(_initDelayHandle);
             _LimpiarComponentesPrevios();
-            DesuscribirEventos();
             _fakeConn.Disconnect();
             // 2. Borrar del registro estático global
             //if (ExiledPlayer != null && AllAgents.ContainsKey(ExiledPlayer.Id))
@@ -364,7 +377,7 @@ namespace ScpAgent.Bot
                 // 5. Migrar cache de sala si el ID cambió
                 int idNuevo = freshPlayer.Id;
                 if (idAntiguo != idNuevo && idAntiguo >= 0)
-                _destroyBoundsCache(idAntiguo, idNuevo);
+                Strategy.destroyBoundsCache(idAntiguo, idNuevo);
 
                 ExiledPlayer = freshPlayer;
 
@@ -437,9 +450,9 @@ namespace ScpAgent.Bot
                 if (freshPlayer != null)
                 {
                     int idNuevo = freshPlayer.Id;
-                    _destroyBoundsCache(idAntiguo, idNuevo);
+                    Strategy.destroyBoundsCache(idAntiguo, idNuevo);
                     ExiledPlayer = freshPlayer;
-                    _addBoundsToCache(ExiledPlayer);
+                    Strategy.addBoundsToCache(ExiledPlayer);
                     _InicializarMouseLook();
                     AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
                     Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado en nueva ronda. " +
@@ -451,18 +464,7 @@ namespace ScpAgent.Bot
                 }
             });
         }
-        private void _destroyBoundsCache(int idAntiguo, int idNuevo)
-        {
-            if (idAntiguo != idNuevo && idAntiguo >= 0)
-            {
-                if (AgentSensorsBase.agentCacheData.TryGetValue(idAntiguo, out var datos))
-                {
-                    AgentSensorsBase.agentCacheData[idNuevo] = datos;
-                    AgentSensorsBase.agentCacheData.Remove(idAntiguo);
-                    Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
-                }
-            }
-        }
+
         private void _LimpiarComponentesPrevios()
         {
             try
@@ -491,7 +493,6 @@ namespace ScpAgent.Bot
                 // recibe daño, mata a alguien o toca una puerta, DEBES hacer el '-=' aquí.
                 if (ExiledPlayer != null)
                 {   
-                    DesuscribirEventos();
                     // Ejemplos comunes de EXILED (Descomenta y adapta a los eventos que uses):
                     // Exiled.Events.Handlers.Player.Hurting -= OnHurting;
                     // Exiled.Events.Handlers.Player.Dying -= OnDying;
@@ -639,118 +640,8 @@ namespace ScpAgent.Bot
         // EVENTOS DE RECOMPENSA
         // ───────────────────────────────────────────────────────────────────────
 
-        public void SuscribirEventos()
-        {
-            Exiled.Events.Handlers.Player.Escaping            += OnEscaping;
-            contadorSuscripciones++;
-            Exiled.Events.Handlers.Player.Dying               += OnDying;
-            contadorSuscripciones++;
-            Exiled.Events.Handlers.Player.PickingUpItem       += OnPickup;
-            contadorSuscripciones++;
-            Exiled.Events.Handlers.Player.InteractingDoor     += OnInteractDoor;
-            contadorSuscripciones++;
-            Exiled.Events.Handlers.Player.InteractingElevator += OnInteractElevator;
-            contadorSuscripciones++;
-            Exiled.Events.Handlers.Player.InteractingLocker   += OnInteractingLocker;
-            contadorSuscripciones++;
-            Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
-        }
 
-        public void DesuscribirEventos()
-        {
-            Exiled.Events.Handlers.Player.Escaping            -= OnEscaping;
-            contadorSuscripciones--;
-            Exiled.Events.Handlers.Player.Dying               -= OnDying;
-            contadorSuscripciones--;
-            Exiled.Events.Handlers.Player.PickingUpItem       -= OnPickup;
-            contadorSuscripciones--;
-            Exiled.Events.Handlers.Player.InteractingDoor     -= OnInteractDoor;
-            contadorSuscripciones--;
-            Exiled.Events.Handlers.Player.InteractingElevator -= OnInteractElevator;
-            contadorSuscripciones--;
-            Exiled.Events.Handlers.Player.InteractingLocker   -= OnInteractingLocker;
-            contadorSuscripciones--;
-            Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
-            contadorSuscripciones--;
-        }
 
-        private void OnEscaping(EscapingEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            PendingReward += 200f;
-            EpisodioTerminado = true;
-            Log.Debug($"[ScpAgentBot] Agente {AgentId} escapó. +200 — episodio terminado.");
-        }
-
-        private void OnDying(DyingEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            PendingReward -= 100f;
-            EpisodioTerminado = true;
-            Log.Debug($"[ScpAgentBot] Agente {AgentId} murió. -100 — episodio terminado.");
-        }
-
-        private void OnPickup(PickingUpItemEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            float bonus = _GetKeycardBonus(ev.Pickup.Type);
-            if (bonus > 0)
-            {
-                PendingReward += bonus;
-                Log.Debug($"[ScpAgentBot] Agente {AgentId} recogió {ev.Pickup.Type}. +{bonus}");
-            }
-        }
-
-        private void OnInteractDoor(InteractingDoorEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            float r = ev.IsAllowed ? 3f : -4f;
-            PendingReward += r;
-        }
-
-        private void OnInteractingLocker(InteractingLockerEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            PendingReward += 8f;
-            Log.Debug($"[ScpAgentBot] Agente {AgentId} abrió locker. +8");
-        }
-
-        private void OnInteractElevator(InteractingElevatorEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            PendingReward += 15f;
-            Log.Debug($"[ScpAgentBot] Agente {AgentId} usó ascensor. +15");
-        }
-
-        public void OnRoomChanged(RoomChangedEventArgs ev)
-        {
-            if (!_EsEsteAgente(ev.Player)) return;
-            if (ev.NewRoom == null || ev.NewRoom.Type == RoomType.Unknown) return;
-
-            try
-            {
-                _addBoundsToCache(ev.Player);
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"[ScpAgentBot] OnRoomChanged Agente {AgentId}: {ex.Message}");
-            }
-        }
-
-        private void _addBoundsToCache(Player player)
-        {
-            Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
-            int pid = player.Id;
-
-            if (!AgentSensorsBase.agentCacheData.ContainsKey(pid))
-                AgentSensorsBase.agentCacheData[pid] = new AgentCacheData();
-
-            AgentSensorsBase.agentCacheData[pid].center = b.center;
-            AgentSensorsBase.agentCacheData[pid].halfX = b.size.x / 2f;
-            AgentSensorsBase.agentCacheData[pid].halfY = b.size.y / 2f;
-            AgentSensorsBase.agentCacheData[pid].halfZ = b.size.z / 2f;
-            AgentSensorsBase.agentCacheData[pid].IsDataReady   = true;           
-        }
         
         // ───────────────────────────────────────────────────────────────────────
         // HELPERS (privados)
@@ -759,11 +650,7 @@ namespace ScpAgent.Bot
         /// <summary>
         /// Verifica que el evento corresponda a ESTE agente concreto (no a otro jugador).
         /// </summary>
-        private bool _EsEsteAgente(Player p)
-        {
-            if (p == null || ExiledPlayer == null) return false;
-            return p.Id == ExiledPlayer.Id;
-        }
+        /// 
 
         private bool _IsKeycard(ItemType t) =>
             t.ToString().IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
