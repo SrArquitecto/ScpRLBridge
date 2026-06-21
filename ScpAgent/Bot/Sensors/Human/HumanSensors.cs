@@ -40,9 +40,9 @@ namespace ScpAgent.Bot.Sensors
         // ── Listas globales cacheadas (se cargan UNA VEZ por ronda) ───────────
         private List<Pickup> _cachedKeys;
   
-        private List<Lift>   _cachedLifts;
 
-
+        private readonly VisualMemory _memoriaKeycards = new VisualMemory(TIEMPO_OLVIDO_OBJETOS);
+        private readonly VisualMemory _memoriaLockers  = new VisualMemory(TIEMPO_OLVIDO_OBJETOS);
         // ── Cache de collider name por puerta (evita GetComponentsInChildren) ──
         // Se llena la primera vez que se procesa cada puerta y se reutiliza
 
@@ -244,24 +244,7 @@ namespace ScpAgent.Bot.Sensors
         {
             base.ResetEstado();
             // ── Estado de movimiento ─────────────────────────────────────────
-            _lastPos   = Vector3.zero;
-            _lastYaw   = 0f;
-            _lastPitch = 0f;
-
-            // ── Cache del raycast ────────────────────────────────────────────
-            _aimCacheCounter   = 0;
-            _cachedAimTarget   = "None";
-            _cachedAimDist     = 0f;
-            _cachedAimRoom     = "Unknown";
-            _cachedAimDoorName = "None";
-            _cachedHitName     = "None";
-            _cachedHitX        = 0f;
-            _cachedHitY        = 0f;
-            _cachedHitZ        = 0f;
-            _cachedForwardX    = 0f;
-            _cachedForwardZ    = 0f;
-            _frameCounter = UPDATE_FREQUENCY;
-            _aimCacheCounter = AIM_CACHE_FRAMES;
+ 
             // ── Listas de entorno cercano ────────────────────────────────────
             
             _cachedNearKeycards.Clear();

@@ -75,6 +75,8 @@ namespace ScpAgent.Bot.Data
         public float RealRelY { get; set; }
         public float RealRelZ { get; set; }
         public float Distance { get; set; }
+        public bool EsRecordado {get; set;}
+        public float Antiguedad {get; set;}
     }
 
     public class DoorData
@@ -92,6 +94,9 @@ namespace ScpAgent.Bot.Data
         public int RequiredTier { get; set; }
         public bool CanOpen { get; set; }
         public bool IsOpen { get; set; }
+        public bool EsRecordado {get; set;}
+        public float Antiguedad {get; set;}
+                     
     }
 
     public class LiftData
@@ -107,6 +112,8 @@ namespace ScpAgent.Bot.Data
         public bool IsMoving { get; set; }
         public bool CanUse { get; set; }
         public int CurrentLevel { get; set; }
+        public bool EsRecordado {get; set;}
+        public float Antiguedad {get; set;}
     }
 
     public class LockerData
@@ -121,6 +128,8 @@ namespace ScpAgent.Bot.Data
         public float RealRelZ { get; set; }
         public float Distance { get; set; }
         public bool HasIsOpen { get; set; }
+        public bool EsRecordado {get; set;}
+        public float Antiguedad {get; set;}
     }
 
     public class RoomData
@@ -139,6 +148,8 @@ namespace ScpAgent.Bot.Data
         public float Prioridad { get; set; }
         public float Dist { get; set; }
         public float DistNorm { get; set; }
+        public bool EsRecordado {get; set;}
+        public float Antiguedad {get; set;}
     }
     public class Habitaciones
     {
@@ -154,6 +165,8 @@ namespace ScpAgent.Bot.Data
         public float Prioridad { get; set; }
         public float Distancia { get; set; }
         public float DistanciaNormalizada { get; set; }// Opcional, pero muy útil para tu PPO
+        public bool EsRecordado {get; set;}
+        public float Antiguedad {get; set;}
     }
 
 
