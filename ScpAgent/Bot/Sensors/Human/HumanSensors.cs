@@ -432,9 +432,9 @@ namespace ScpAgent.Bot.Sensors
             // ── Listas de entorno cercano ────────────────────────────────────
             
             _cachedNearKeycards.Clear();
-            
+            _memoriaKeycards.Clear();
             _cachedNearLockers.Clear();
-            
+            _memoriaLockers.Clear();
 
 
 

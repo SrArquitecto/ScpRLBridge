@@ -138,6 +138,11 @@ namespace ScpAgent.Bot
         {
             _sensores = sensores;
         }
+        public ISensors GetSensors()
+        {
+            return _sensores;
+        }
+
 
         public void ResetearPosicionInicial(Vector3 posicionSpawn)
         {

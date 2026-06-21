@@ -48,10 +48,11 @@ namespace ScpAgent.Bot.Strategies
         {
             if (!_EsEsteAgente(ev.Player)) return;
             if (ev.NewRoom == null || ev.NewRoom.Type == RoomType.Unknown) return;
-
+            
             try
             {
                 addBoundsToCache(ev.Player);
+                _bot.GetSensors()?.MarcarRoomDescubierta(ev.NewRoom);
             }
             catch (Exception ex)
             {

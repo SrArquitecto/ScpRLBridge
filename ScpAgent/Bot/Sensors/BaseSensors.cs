@@ -72,6 +72,7 @@ namespace ScpAgent.Bot.Sensors
         protected readonly LiftData[]     _liftPool    = new LiftData[3];
         protected readonly RoomData[]     _roomPool    = new RoomData[5];
         protected readonly ActorData[]   _playerPool   = new ActorData[5];
+        private readonly HashSet<int> _roomsDescubiertas = new HashSet<int>();
         protected static readonly Comparison<Habitaciones> _roomComparison = 
     (a, b) => b.Prioridad.CompareTo(a.Prioridad) == 0 ? a.Distancia.CompareTo(b.Distancia) : b.Prioridad.CompareTo(a.Prioridad);
 
@@ -213,6 +214,11 @@ namespace ScpAgent.Bot.Sensors
             return observation;
         }
         
+        public void MarcarRoomDescubierta(Room sala)
+        {
+            if (sala == null || sala.GameObject == null) return;
+            _roomsDescubiertas.Add(sala.GameObject.GetInstanceID());
+        }
 
         // ───────────────────────────────────────────────────────────────────────
         // VELOCIDADES
@@ -404,20 +410,21 @@ namespace ScpAgent.Bot.Sensors
         }
         private void _CargarRooms(AgentObservation obs, int playerTier)
         {
-            //var roomListSnapshot = Room.List.ToList();
             if (_cachedRooms == null || _cachedRooms.Count == 0)
                 _cachedRooms = new List<Room>(Room.List);
-                
+
             _roomsPriorizada.Clear();
             ObtenerListaSalasPriorizadas(playerTier);
-            //Log.Info($"_roomsPriorizada: {_roomsPriorizada.Count}");
-            // ── SALAS PRIORIZADAS ─────────────────────────────────────────────────
-            //var habitaciones = ObtenerListaSalasPriorizadas(_player, playerTier);
+
             int roomsCounter = 0;
             foreach (var h in _roomsPriorizada)
             {
                 if (h == null || roomsCounter >= 5) break;
                 if (h.PosicionReal == null) continue;
+
+                // Filtro de descubrimiento — solo rooms ya visitadas por el bot
+                if (h.RoomInstanceId == 0 || !_roomsDescubiertas.Contains(h.RoomInstanceId)) continue;
+
                 var r = _roomPool[roomsCounter];
                 r.Nombre    = h.NombreHabitacion;
                 r.Id        = h.IdHabitacion;
@@ -436,7 +443,6 @@ namespace ScpAgent.Bot.Sensors
                 _cachedNearRooms.Add(r);
                 roomsCounter++;
             }
-            //Log.Info($"_cachedNearRooms: {_cachedNearRooms.Count}");
         }
 
         private void _CargarPuertas(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
@@ -916,6 +922,8 @@ namespace ScpAgent.Bot.Sensors
             _cachedNearPlayers.Clear();
             _listaTemporalPlayers.Clear();
             _memoriaJugadores.Clear();
+            _memoriaPuertas.Clear();
+            _memoriaLifts.Clear();
             _cachedNearDoors.Clear();
             _cachedNearRooms.Clear();
             _doorsConDist.Clear();
@@ -1005,6 +1013,7 @@ namespace ScpAgent.Bot.Sensors
 
                 _roomsPriorizada.Add(new Habitaciones
                 {
+                    RoomInstanceId = sala.GameObject.GetInstanceID(),
                     NombreHabitacion = sala.Type.ToString(),
                     IdHabitacion = (int)sala.Type,
                     PosicionReal = sala.Position,

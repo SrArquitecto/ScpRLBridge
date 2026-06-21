@@ -13,5 +13,6 @@ namespace ScpAgent.Bot.Sensors.Intefaces
         void VincularPlayer(Player freshPlayer);
         void ResetEstado();
         void Destruir();
+        void MarcarRoomDescubierta(Room room);
     }
 }

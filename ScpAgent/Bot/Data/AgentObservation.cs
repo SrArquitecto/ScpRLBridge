@@ -169,6 +169,7 @@ namespace ScpAgent.Bot.Data
         public float DistanciaNormalizada { get; set; }// Opcional, pero muy útil para tu PPO
         public bool EsRecordado {get; set;}
         public float Antiguedad {get; set;}
+        public int RoomInstanceId { get; set; }
     }
 
 

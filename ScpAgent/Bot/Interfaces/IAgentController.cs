@@ -24,6 +24,7 @@ namespace ScpAgent.Bot.Interfaces
         public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD);     
         void SetPlayer(Player exiledPlayer);
         void SetSensores(ISensors sensores);
+        ISensors GetSensors();
         void ResetearPosicionInicial(UnityEngine.Vector3 posicionspawn);
         void ResetEstado();
         AgentObservation GetObservation(float deltaTime);
