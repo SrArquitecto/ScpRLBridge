@@ -316,11 +316,13 @@ namespace ScpAgent.Bot.Sensors
         }
         private void _CargarRooms(AgentObservation obs, int playerTier)
         {
-            if (_cachedRooms == null)
+            //var roomListSnapshot = Room.List.ToList();
+            if (_cachedRooms == null || _cachedRooms.Count == 0)
                 _cachedRooms = new List<Room>(Room.List);
-
+                
             _roomsPriorizada.Clear();
             ObtenerListaSalasPriorizadas(playerTier);
+            //Log.Info($"_roomsPriorizada: {_roomsPriorizada.Count}");
             // ── SALAS PRIORIZADAS ─────────────────────────────────────────────────
             //var habitaciones = ObtenerListaSalasPriorizadas(_player, playerTier);
             int roomsCounter = 0;
@@ -346,6 +348,7 @@ namespace ScpAgent.Bot.Sensors
                 _cachedNearRooms.Add(r);
                 roomsCounter++;
             }
+            //Log.Info($"_cachedNearRooms: {_cachedNearRooms.Count}");
         }
 
         private void _CargarPuertas(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
@@ -534,41 +537,60 @@ namespace ScpAgent.Bot.Sensors
             // Marcar todos como "no vistos este frame" antes de re-evaluar
             foreach (var mem in _memoriaJugadores.Values)
                 mem.VistoEsteFrame = false;
-
+            //Log.Info($"Player.List: {Player.List.Count()} | ReferenceHub.AllHubs: {ReferenceHub.AllHubs.Count} | _player.IsAlive: {_player.IsAlive}");
             // ── 1. Detección directa (visión + raycast) ─────────────────────────
-            foreach (Player hub in Player.List)
+            
+            
+            foreach (var hub in ReferenceHub.AllHubs)
             {
-                if (hub == null || hub == _player || !hub.IsAlive || hub.IsDead ||
-                    hub.Role.Type == RoleTypeId.Spectator) continue;
-                if (hub.GameObject == null || hub.Transform == null) continue;
+                Player target = Player.Get(hub);
+                // Filtrar hub de servidor/dummy — normalmente nickname vacío o rol None
+                if (target == null) continue;
+                if (target == _player) continue;
+                if (!target.IsAlive || target.IsDead) continue;
+                if (target.Role.Type == RoleTypeId.Spectator || target.Role.Type == RoleTypeId.None) continue;
+                if (string.IsNullOrEmpty(target.Nickname)) continue; // ← filtra el hub fantasma
+                if (target.GameObject == null || target.Transform == null) continue;
 
-                float d = Vector3.Distance(hub.Position, pos);
+                float d = Vector3.Distance(target.Position, pos);
                 if (d > rangoRadar) continue;
 
-                Vector3 dirHaciaEl = (hub.Position - pos).normalized;
+                Vector3 dirHaciaEl = (target.Position - pos).normalized;
+                float dot = Vector3.Dot(miMirada, dirHaciaEl);
                 if (Vector3.Dot(miMirada, dirHaciaEl) < 0.5f) continue;
+                //if (d < 1f) // solo logear casos de muy corta distancia para no saturar
+                    //Log.Info($"[FOV-Debug] Agente {_agentId} dist={d:F2} dot={dot:F2} miMirada={miMirada} dirHaciaEl={dirHaciaEl}");
 
-                Vector3 susOjos = hub.CameraTransform != null ? hub.CameraTransform.position : hub.Position + Vector3.up;
+                //if (dot < 0.5f) continue;
+                Vector3 susOjos = target.CameraTransform != null ? target.CameraTransform.position : target.Position + Vector3.up;
                 Vector3 dirRayo = susOjos - misOjos;
 
-                if (Physics.Raycast(misOjos, dirRayo.normalized, out RaycastHit hit, d + 0.5f,
-                    ~0, QueryTriggerInteraction.Ignore))
+                int layerMaskSinJugadores = ~LayerMask.GetMask("Players"); // si existe esa layer
+                if (d >= 1f)
                 {
-                    if (hit.collider.gameObject != hub.GameObject && hit.transform.root != hub.Transform.root)
-                        continue; // bloqueado por un obstáculo — no actualiza memoria
+                    // Solo gastamos CPU en el Raycast si el objeto está a más de 1 metro
+                    if (Physics.Raycast(misOjos, dirRayo.normalized, out RaycastHit hit, d + 0.5f,
+                        layerMaskSinJugadores, QueryTriggerInteraction.Ignore))
+                    {
+                        // Si el rayo choca con algo que NO es el objeto objetivo (hub), está tapado por una pared
+                        if (hit.collider.gameObject != target.GameObject && hit.transform.root != target.Transform.root)
+                        {
+                            continue; // Rompe la línea de visión, saltamos al siguiente objeto
+                        }
+                    }
                 }
 
                 // Visto correctamente — actualizar/crear memoria
-                if (!_memoriaJugadores.TryGetValue(hub.Id, out var mem))
+                if (!_memoriaJugadores.TryGetValue(target.Id, out var mem))
                 {
                     mem = new MemoriaJugador();
-                    _memoriaJugadores[hub.Id] = mem;
+                    _memoriaJugadores[target.Id] = mem;
                 }
-                mem.UltimaPosicion   = hub.Position;
+                mem.UltimaPosicion   = target.Position;
                 mem.UltimoTimestamp  = Time.time;
                 mem.VistoEsteFrame   = true;
 
-                _listaTemporalPlayers.Add(new Actor { Player = hub, Distancia = d, EsRecordado = false });
+                _listaTemporalPlayers.Add(new Actor { Player = target, Distancia = d, EsRecordado = false });
             }
 
             // ── 2. Añadir jugadores RECORDADOS (no vistos ahora pero dentro del tiempo de olvido) ──
@@ -647,7 +669,7 @@ namespace ScpAgent.Bot.Sensors
                 else
                 {
                     // Sin información actual — valores neutros
-                    pd.Hostilidad   = 0f;
+                    pd.Hostilidad   = _calcularHostilidad(_player, target);
                     pd.Health       = -1f; // -1 indica "desconocido" para la red
                     pd.MiradaHaciaMi = 0f;
                 }
@@ -655,6 +677,7 @@ namespace ScpAgent.Bot.Sensors
                 _cachedNearPlayers.Add(pd);
                 count++;
             }
+            //Log.Info($"Agent: {_agentId} _cachedNearPlayers: {_cachedNearPlayers.Count}");
             _CopiarACacheJugadores(obs);
             
         }
