@@ -110,6 +110,7 @@ namespace ScpAgent.Bot.Data
         public float RealRelZ { get; set; }
         public float Distance { get; set; }
         public bool IsMoving { get; set; }
+        public bool IsLocked { get; set; }
         public bool CanUse { get; set; }
         public int CurrentLevel { get; set; }
         public bool EsRecordado {get; set;}

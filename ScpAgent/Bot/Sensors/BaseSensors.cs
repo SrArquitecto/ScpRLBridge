@@ -45,6 +45,7 @@ namespace ScpAgent.Bot.Sensors
      
 
         protected readonly List<(Door d, float dist)> _doorsConDist = new List<(Door d, float dist)>(50);
+        protected readonly List<(Lift d, float dist)> _liftsConDist = new List<(Lift d, float dist)>(50);
         protected readonly List<Habitaciones> _roomsPriorizada = new List<Habitaciones>(120);
 
 
@@ -52,6 +53,7 @@ namespace ScpAgent.Bot.Sensors
         // ── Buffers estáticos para raycasts (sin alloc) ────────────────────────
         protected readonly RaycastHit[] _raycastBuffer    = new RaycastHit[10];
         protected readonly RaycastHit[] _behindDoorBuffer = new RaycastHit[5];
+        protected readonly RaycastHit[] _visibilidadBuffer = new RaycastHit[15];
 
         // ── Cache de datos de sala por agente ──────────────────────────────────
         public static Dictionary<int, AgentCacheData> agentCacheData = new Dictionary<int, AgentCacheData>();
@@ -94,7 +96,8 @@ namespace ScpAgent.Bot.Sensors
             Comparer<RaycastHit>.Create((x, y) => x.distance.CompareTo(y.distance));
         protected static readonly Comparison<(Door d, float dist)> _doorComparison =
             (a, b) => a.dist.CompareTo(b.dist);
-        
+        protected static readonly Comparison<(Lift d, float dist)> _liftComparison =
+            (a, b) => a.dist.CompareTo(b.dist);
         
 
         // ───────────────────────────────────────────────────────────────────────
@@ -293,9 +296,41 @@ namespace ScpAgent.Bot.Sensors
 
             if (_cachedLifts == null) _cachedLifts = new List<Lift>(Lift.List);
             else { _cachedLifts.Clear(); _cachedLifts.AddRange(Lift.List); }
-        
-            int liftCount = 0;
+
+            Vector3 miMirada = _player.CameraTransform != null ? _player.CameraTransform.forward : _player.Transform.forward;
+            Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
+            float   ahora    = Time.time;
+            
+            _memoriaLifts.MarcarTodosNoVistos();
+
+            _liftsConDist.Clear();
             foreach (var l in _cachedLifts)
+            {
+                if (l == null) continue;
+
+                try
+                {
+                    if (l.GameObject == null || l.Transform == null) continue;
+
+                    float dist = Vector3.Distance(l.Transform.position, pos);
+                    if (dist >= 50f) continue;
+
+                    // Filtro de visibilidad — FOV + raycast
+                    if (!_EsVisible(misOjos, miMirada, l.Position, dist, l.GameObject)) continue;
+
+                    // Visible ahora — registrar/actualizar memoria
+                    int liftId = l.GameObject.GetInstanceID();
+                    _memoriaPuertas.RegistrarVisto(liftId, l.Position, ahora, l.IsMoving);
+                    _memoriaPuertas.TryGet(liftId, out var memActualizada);
+                    memActualizada.ReferenciaObjeto = l;
+                    _liftsConDist.Add((l, dist));
+                }
+                catch { continue; }
+            }
+            _liftsConDist.Sort(_liftComparison);
+
+            int liftCount = 0;
+            foreach (var (l, dist) in _liftsConDist)
             {
                 if (l == null || liftCount >= 3) break;
                 if (l.Transform == null) continue;
@@ -306,6 +341,7 @@ namespace ScpAgent.Bot.Sensors
                 var ld = _liftPool[liftCount];
                 ld.Type         = l.Type.ToString();
                 ld.Distance     = d / 50f;
+                ld.IsLocked     = l.IsLocked;
                 ld.IsMoving     = l.IsMoving;
                 ld.CanUse       = !l.IsMoving;
                 ld.CurrentLevel = l.CurrentLevel;
@@ -318,6 +354,63 @@ namespace ScpAgent.Bot.Sensors
                 _cachedNearLifts.Add(ld);
                 liftCount++;
             }
+
+            foreach (var kv in _memoriaLifts.Entradas)
+            {
+                if (liftCount >= 15) break;
+                if (kv.Value.VistoEsteCiclo) continue; // ya procesada arriba
+
+                var mem = kv.Value;
+                float dist = Vector3.Distance(mem.UltimaPosicion, pos);
+                if (dist >= 60f) continue; // ya muy lejos, no relevante
+
+
+                var l = _liftPool[liftCount];
+                var liftRef = mem.ReferenciaObjeto as Door;
+
+                if (liftRef != null && liftRef.GameObject != null)
+                {
+                    l.Type         = l.Type.ToString();;; // no tenemos el wrapper Door a mano, solo posición
+                    l.IsLocked     = l.IsLocked;
+                    l.IsMoving     = l.IsMoving;
+                    l.CanUse       = !l.IsMoving;
+                    l.CurrentLevel = l.CurrentLevel;
+                }
+                else
+                {
+                    
+                }
+                
+                dd.Distance     = dist / 50f;
+                dd.IsOpen       = mem.EstadoBoolCache; // último estado conocido
+                dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;
+                dd.RelY         = (mem.UltimaPosicion.y - pos.y) / 50f;
+                dd.RelZ         = (mem.UltimaPosicion.z - pos.z) / 50f;
+                dd.RealRelX     = mem.UltimaPosicion.x - pos.x;
+                dd.RealRelY     = mem.UltimaPosicion.y - pos.y;
+                dd.RealRelZ     = mem.UltimaPosicion.z - pos.z;
+                dd.EsRecordado  = true;
+                dd.Antiguedad   = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO_OBJETOS; // normalizado 0-1
+                _cachedNearDoors.Add(l);
+                doorCount++;
+                                
+                l.Type         = l.Type.ToString();
+                l.Distance     = d / 50f;
+                l.IsLocked     = l.IsLocked;
+                l.IsMoving     = l.IsMoving;
+                l.CanUse       = !l.IsMoving;
+                
+                l.RelX = (l.Position.x - pos.x) / 50f;
+                l.RelY = (l.Position.y - pos.y) / 50f;
+                l.RelZ = (l.Position.z - pos.z) / 50f;
+                l.RealRelX     = l.Position.x - pos.x;
+                l.RealRelY     = l.Position.y - pos.y;
+                l.RealRelZ     = l.Position.z - pos.z;
+                _cachedNearLifts.Add(ld);
+                liftCount++;
+            }
+
+            _memoriaPuertas.PurgarOlvidados(ahora);
         }
         private void _CargarRooms(AgentObservation obs, int playerTier)
         {
@@ -391,7 +484,8 @@ namespace ScpAgent.Bot.Sensors
                     // Visible ahora — registrar/actualizar memoria
                     int doorId = d.GameObject.GetInstanceID();
                     _memoriaPuertas.RegistrarVisto(doorId, d.Position, ahora, estadoBool: d.IsOpen);
-
+                    _memoriaPuertas.TryGet(doorId, out var memActualizada);
+                    memActualizada.ReferenciaObjeto = d;
                     _doorsConDist.Add((d, dist));
                 }
                 catch { continue; }
@@ -451,15 +545,40 @@ namespace ScpAgent.Bot.Sensors
 
                 var mem = kv.Value;
                 float dist = Vector3.Distance(mem.UltimaPosicion, pos);
-                if (dist >= 50f * 1.2f) continue; // ya muy lejos, no relevante
+                if (dist >= 60f) continue; // ya muy lejos, no relevante
+
 
                 var dd = _doorPool[doorCount];
-                dd.Type         = "Unknown"; // no tenemos el wrapper Door a mano, solo posición
-                dd.Name         = "Recordada";
-                dd.ColliderName = "Unknown";
+                var doorRef = mem.ReferenciaObjeto as Door;
+
+                
+
+                if (doorRef != null && doorRef.GameObject != null)
+                {
+                    int doorId = doorRef.GameObject.GetInstanceID();
+                    if (!_doorColliderCache.TryGetValue(doorId, out string colliderName))
+                    {
+                        colliderName = "Unknown";
+                        var colliders = doorRef.GameObject.GetComponentsInChildren<Collider>(true);
+                        var valid = System.Array.Find(colliders,
+                            c => !c.isTrigger && !c.name.Contains("TouchScreenPanel") && !c.name.Contains("Frame"));
+                        if (valid != null) colliderName = valid.name;
+                        _doorColliderCache[doorId] = colliderName;
+                    }
+                    int reqTier = GetDoorRequiredTier(doorRef);
+                    dd.Type         = doorRef.RequiredPermissions.ToString();; // no tenemos el wrapper Door a mano, solo posición
+                    dd.Name         = doorRef.Name;
+                    dd.ColliderName = colliderName;
+                    dd.CanOpen      = playerTier >= reqTier;
+                }
+                else
+                {
+                    
+                }
+                
                 dd.Distance     = dist / 50f;
                 dd.RequiredTier = 0;
-                dd.CanOpen      = false;
+                
                 dd.IsOpen       = mem.EstadoBoolCache; // último estado conocido
                 dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;
                 dd.RelY         = (mem.UltimaPosicion.y - pos.y) / 50f;
@@ -964,27 +1083,32 @@ namespace ScpAgent.Bot.Sensors
         protected bool _EsVisible(Vector3 misOjos, Vector3 miMirada, Vector3 posObjetivo,
             float distancia, GameObject objetivoGO, float fovMinDot = 0.45f)
         {
-            // FOV — fuera del cono de visión
+            if (objetivoGO == null) return false;
+
             Vector3 dirHaciaObjetivo = (posObjetivo - misOjos).normalized;
             if (Vector3.Dot(miMirada, dirHaciaObjetivo) < fovMinDot) return false;
 
-            // Muy cerca — asumimos visible sin raycast (evita ruido a corta distancia)
             if (distancia < 1.5f) return true;
 
-            // Raycast — algo bloquea la línea de visión
-            if (Physics.Raycast(misOjos, dirHaciaObjetivo, out RaycastHit hit, distancia + 0.5f,
-                ~0, QueryTriggerInteraction.Ignore))
+            int hitCount = Physics.RaycastNonAlloc(misOjos, dirHaciaObjetivo, _visibilidadBuffer,
+                distancia + 0.5f, ~0, QueryTriggerInteraction.Ignore);
+
+            if (hitCount == 0) return false; // nada detectado, sospechoso — no visible por defecto
+
+            System.Array.Sort(_visibilidadBuffer, 0, hitCount, _raycastComparer);
+
+            // El primer hit (más cercano) que NO sea el propio jugador es lo que realmente bloquea/confirma
+            for (int i = 0; i < hitCount; i++)
             {
-                if (objetivoGO != null &&
-                    hit.collider.gameObject != objetivoGO &&
-                    hit.transform.root != objetivoGO.transform.root)
-                {
-                    return false; // obstáculo entre el bot y el objeto
-                }
+                var h = _visibilidadBuffer[i];
+                if (h.collider.gameObject == _player.GameObject) continue; // ignorar el propio cuerpo
+
+                // ¿El primer obstáculo real ES el objetivo (o un hijo de él)?
+                return h.collider.gameObject.GetInstanceID() == objetivoGO.GetInstanceID()
+                    || h.collider.transform.IsChildOf(objetivoGO.transform);
             }
 
-            return true;
+            return false;
         }
-        
     }
 }

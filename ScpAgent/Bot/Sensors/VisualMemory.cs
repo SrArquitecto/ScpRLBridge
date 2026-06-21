@@ -16,6 +16,7 @@ namespace ScpAgent.Bot.Sensors
         // Se actualiza solo cuando se ve directamente — al recordar, se usa el último conocido.
         public bool  EstadoBoolCache;   // p.ej. IsOpen, HasIsOpen
         public int   EstadoIntCache;    // p.ej. RequiredTier
+        public object  ReferenciaObjeto;
     }
 
     /// <summary>
