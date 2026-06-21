@@ -56,8 +56,8 @@ namespace ScpAgent.Bot.Sensors
         }
 
         public override void Init()
-        {
-
+        {   
+            base.Init();
             for (int i = 0; i < _keycardPool.Length; i++) _keycardPool[i] = new KeycardData();
             for (int i = 0; i < _lockerPool.Length;  i++) _lockerPool[i]  = new LockerData();
         }
@@ -344,91 +344,6 @@ namespace ScpAgent.Bot.Sensors
 
         private bool IsKeycardTypeName(string itemTypeName) => itemTypeName?.IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
    // implementa tu lógica
-        protected override void ObtenerListaSalasPriorizadas(int tierTarjeta)
-        {
-            //List<Habitaciones> listaPriorizada = new List<Habitaciones>();
-
-            foreach (Room sala in _cachedRooms)
-            {
-                // Ignoramos salas desconocidas o zonas muertas
-                if (sala.Type == RoomType.Unknown) continue;
-                if (sala == null || sala.GameObject == null) continue;
-                float distancia = Vector3.Distance(_player.Position, sala.Position);
-                if (distancia > 500f) continue;
-
-                float prioridad = 0;
-
-                // --- LÓGICA DINÁMICA DE PRIORIDADES ---
-                switch (sala.Type)
-                {
-                    case RoomType.Lcz914:
-                        // Si necesita mejorar la tarjeta, 914 es la prioridad máxima absoluta
-                        prioridad = tierTarjeta is >= 1 and < 3 ? 80f : 0f;
-                        break;
-
-                    case RoomType.LczCheckpointB:
-                    case RoomType.LczCheckpointA:
-                        // Si ya tiene tarjeta buena para salir de LCZ, los checkpoints son vitales
-                        prioridad = tierTarjeta >= 3 ? 100f : 0f;
-                        break;
-                    case RoomType.LczPlants:
-                        prioridad = tierTarjeta <= 2 ? 40f : 5f;
-                        break;
-                    case RoomType.LczClassDSpawn:
-                        prioridad = 0;
-                        break;
-
-                    case RoomType.LczArmory:
-                        prioridad = tierTarjeta > 3 ? 60f : 0f;
-                        // Zonas de armas/loot (prioridad media-alta para sobrevivir)
-                        
-                        break;
-                    case RoomType.Lcz330:
-                        prioridad = tierTarjeta == 2 ? 100f : 0f;
-                        break;
-                    case RoomType.Lcz173:
-                    case RoomType.LczGlassBox:
-                    case RoomType.LczCafe:
-                        prioridad = tierTarjeta < 3 ? 100f : 0f;
-                        break;
-                    case RoomType.LczToilets:
-                        prioridad = tierTarjeta < 1 ? 80f : 0f;
-                        break;
-
-
-                    default:
-                        // Pasillos, curvas y salas estándar tienen prioridad baja (solo sirven para transitar)
-                        prioridad = 5f;
-                        break;
-                }
-
-                //float distancia = Vector3.Distance(_player.Position, sala.Position);
-                Vector3 vectorObjetivo = sala.Position - _player.Transform.position;
-                Vector3 dirNormalizada = vectorObjetivo.normalized;
-                float distNormalizada = Mathf.Clamp01(vectorObjetivo.magnitude / RANGO_MAPA);
-                float salaNormX = Mathf.Clamp(sala.Position.x / RANGO_MAPA, -1f, 1f);
-                float salaNormY = Mathf.Clamp(sala.Position.y / RANGO_MAPA, -1f, 1f); // Altura (LCZ vs HCZ)
-                float salaNormZ = Mathf.Clamp(sala.Position.z / RANGO_MAPA, -1f, 1f);
-
-                _roomsPriorizada.Add(new Habitaciones
-                {
-                    NombreHabitacion = sala.Type.ToString(),
-                    IdHabitacion = (int)sala.Type,
-                    PosicionReal = sala.Position,
-                    PosicionNormX = dirNormalizada.x,
-                    PosicionNormY = dirNormalizada.y,
-                    PosicionNormZ = dirNormalizada.z,
-                    PosicionUbiX = salaNormX,
-                    PosicionUbiY = salaNormY,
-                    PosicionUbiZ = salaNormZ,
-                    Prioridad = prioridad/200f,
-                    Distancia = distancia,
-                    DistanciaNormalizada = distNormalizada
-                });
-
-            }
-
-            _roomsPriorizada.Sort(_roomComparison);
-        }
+        
     }
 }

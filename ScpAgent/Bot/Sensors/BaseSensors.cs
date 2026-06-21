@@ -6,8 +6,8 @@ using ScpAgent.Bot.Data;
 using Exiled.API.Features.Doors;
 using ScpAgent.Bot.Sensors.Intefaces;
 using PlayerRoles;
-using MapGeneration.Holidays;
-using Exiled.API.Extensions;
+using Exiled.API.Enums;
+using System.Linq;
 
 namespace ScpAgent.Bot.Sensors
 {
@@ -139,8 +139,6 @@ namespace ScpAgent.Bot.Sensors
         public virtual AgentObservation GetCurrentState(
             float fixedDelta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {
-
-            
             Vector3 pos         = _player.Position;
             Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
             
@@ -199,7 +197,7 @@ namespace ScpAgent.Bot.Sensors
             _CargarElementosBaseCercanos(observation, pos, data.halfX, data.halfY, data.halfZ, playerTier);
 
             _CargarPersonajesCercanos(observation, pos, 100);
-
+            Log.Debug($"[Perf-HUMAN] Tras CargarElementosCercanos: obs.NearDoors={observation.NearDoors.Count}");
             return observation;
         }
         
@@ -259,21 +257,28 @@ namespace ScpAgent.Bot.Sensors
                 return;
             }
             _frameCounter = 0;
+            if (_frameCounter == 0) { // justo tras recargar
+                Log.Debug($"[Perf] Puertas cargadas en _cachedNearDoors: {_cachedNearDoors.Count}");
+                Log.Debug($"[Perf] Puertas cargadas en _cachedNearRooms: {_cachedNearRooms.Count}");
+            }
 
+            _cachedNearDoors.Clear();
+            _cachedNearLifts.Clear();
+            _cachedNearRooms.Clear();
+            _doorsConDist.Clear();
             _doorColliderCache.Clear();
-            try { _CargarPuertas(observation, pos, halfX, halfY, halfZ, playerTier); }
-            catch (Exception ex) { 
-                Log.Error($"[Sensors] AGENTE: {_agentId} ID PLAYER: {_player.Id} NULL en PUERTAS: {ex.Message}");
-                Log.Error($"[Sensors] StackTrace: {ex.StackTrace}");
-             }
-            _CopiarACachePuertas(observation);
 
-            //_cachedNearLifts.Clear();
+            try { _CargarPuertas(observation, pos, halfX, halfY, halfZ, playerTier); }
+            catch (Exception ex) { Log.Error($"[Sensors] NULL en PUERTAS: {ex.Message}"); }
+            _CopiarACachePuertas(observation);
+            Log.Debug($"[Perf-BASE] Tras CopiarACachePuertas: obs.NearDoors={observation.NearDoors.Count}");
+
+            
             try { _CargarAscensores(observation, pos, halfX, halfY, halfZ); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en ASCENSORES: {ex.Message}"); }
             _CopiarACacheAscensores(observation);
 
-            //_cachedNearRooms.Clear();
+            
             try { _CargarRooms(observation, playerTier); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en ROOMS: {ex.Message}"); }
             _CopiarACacheHabitaciones(observation);
@@ -345,98 +350,85 @@ namespace ScpAgent.Bot.Sensors
 
         private void _CargarPuertas(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ, int playerTier)
         {
-            if (_cachedDoors != null && _cachedDoors.Count > 0)
-            {
-                // Revisamos solo la primera puerta. Si su GameObject es nulo o fue destruido por Unity,
-                // significa que TODAS las puertas de la lista son de la ronda anterior.
-                var primeraPuerta = _cachedDoors[0];
-                
-                // Usamos try-catch rápido solo para la validación por si el wrapper de EXILED es muy estricto
-                bool cacheCaducada = false;
-                try 
-                {
-                    if (primeraPuerta == null || primeraPuerta.GameObject == null) cacheCaducada = true;
-                } 
-                catch 
-                { 
-                    cacheCaducada = true; 
-                }
-
-                if (cacheCaducada)
-                {
-                    // PURGAMOS TODA LA MEMORIA DE LA RONDA ANTERIOR
-                    _cachedDoors.Clear();
-                    _doorColliderCache.Clear(); 
-                    //Log.Debug("[Sensors] Caché de puertas invalidada por cambio de ronda.");
-                }
-            }
-            if (_cachedDoors == null || _cachedDoors.Count == 0)
-            {
+            //var doorListSnapshot = Door.List.ToList()
+            ;
+            if (_cachedDoors == null) 
                 _cachedDoors = new List<Door>(Door.List);
-                //Log.Info($"[Perf] Puertas cargadas: {_cachedDoors.Count}");
+            else 
+            { 
+                _cachedDoors.Clear(); 
+                _cachedDoors.AddRange(Door.List); 
             }
-        
-            // Reutilizar lista de tuplas cacheada
+            Log.Debug($"[Perf-PUERTAS] Door.List.Count={Door.List.Count} _cachedDoors.Count={_cachedDoors.Count}");
+            //Log.Debug($"[Perf-PUERTAS] Snapshot.Count={doorListSnapshot.Count} _cachedDoors.Count={_cachedDoors.Count}");
             _doorsConDist.Clear();
             foreach (var d in _cachedDoors)
-            {   
-                if (d == null || d.Transform == null || d.GameObject == null) continue;
+            {
                 if (d == null) continue;
-                float dist = Vector3.Distance(d.Transform.position, pos);
-                if (dist < 50f) _doorsConDist.Add((d, dist));
+                try
+                {
+                    if (d.GameObject == null || d.Transform == null) continue;
+                    float dist = Vector3.Distance(d.Transform.position, pos);
+                    if (dist < 50f) _doorsConDist.Add((d, dist));
+                }
+                catch { continue; } // puerta en estado transitorio durante generación de mapa
             }
-            //_doorsConDist.Sort((a, b) => a.dist.CompareTo(b.dist));
             _doorsConDist.Sort(_doorComparison);
-        
+            Log.Debug($"[Perf-PUERTAS] _doorsConDist.Count tras filtro de distancia: {_doorsConDist.Count}");
             int doorCount = 0;
             foreach (var (d, dist) in _doorsConDist)
             {
                 if (doorCount >= 15) break;
-                if (d.GameObject == null) { Log.Warn("[Puertas] GameObject null en loop2"); continue; }
+
+                try
+                {
+                    if (d.GameObject == null) { Log.Warn($"[P2] GameObject null: {d?.Name}"); continue; }
+                }
+                catch (Exception ex) { Log.Warn($"[P2] Fallo en d.GameObject: {ex.Message} puerta={d?.Name}"); continue; }
 
                 int doorId;
                 try { doorId = d.GameObject.GetInstanceID(); }
-                catch (Exception ex) { Log.Warn($"[Puertas] GetInstanceID falló: {ex.Message}"); continue; }
+                catch (Exception ex) { Log.Warn($"[P2] Fallo en GetInstanceID: {ex.Message}"); continue; }
 
-                if (!_doorColliderCache.TryGetValue(doorId, out string colliderName))
+                string colliderName = "Unknown";
+                try
                 {
-                    colliderName = "Unknown";
-                    try
+                    if (!_doorColliderCache.TryGetValue(doorId, out colliderName))
                     {
+                        colliderName = "Unknown";
                         var colliders = d.GameObject.GetComponentsInChildren<Collider>(true);
                         var valid = System.Array.Find(colliders,
                             c => !c.isTrigger && !c.name.Contains("TouchScreenPanel") && !c.name.Contains("Frame"));
                         if (valid != null) colliderName = valid.name;
+                        _doorColliderCache[doorId] = colliderName;
                     }
-                    catch (Exception ex) { Log.Warn($"[Puertas] GetComponentsInChildren falló: {ex.Message}"); }
-                    _doorColliderCache[doorId] = colliderName;
                 }
-        
+                catch (Exception ex) { Log.Warn($"[P2] Fallo en colliderName: {ex.Message} puerta={d?.Name}"); continue; }
+
                 int reqTier;
                 try { reqTier = GetDoorRequiredTier(d); }
-                catch (Exception ex) { Log.Warn($"[Puertas] GetDoorRequiredTier falló: {ex.Message}"); continue; }
+                catch (Exception ex) { Log.Warn($"[P2] Fallo en GetDoorRequiredTier: {ex.Message} puerta={d?.Name}"); continue; }
 
-                string nombre, tipoStr;
-                try { nombre = d.Name; tipoStr = d.RequiredPermissions.ToString(); }
-                catch (Exception ex) { Log.Warn($"[Puertas] Name/RequiredPermissions falló: {ex.Message}"); continue; }
-
-                // Reutilizar objeto del pool en vez de new DoorData
-                var dd = _doorPool[doorCount];
-                dd.Type         = d.RequiredPermissions.ToString();
-                dd.Name         = nombre;
-                dd.ColliderName = colliderName;
-                dd.Distance     = dist / 50f;
-                dd.RequiredTier = reqTier;
-                dd.CanOpen      = playerTier >= reqTier;
-                dd.IsOpen       = d.IsOpen;
-                dd.RelX = (d.Position.x - pos.x) / 50f;
-                dd.RelY = (d.Position.y - pos.y) / 50f;
-                dd.RelZ = (d.Position.z - pos.z) / 50f;
-                dd.RealRelX     = d.Position.x - pos.x;
-                dd.RealRelY     = d.Position.y - pos.y;
-                dd.RealRelZ     = d.Position.z - pos.z;
-                _cachedNearDoors.Add(dd);
-                doorCount++;
+                try
+                {
+                    var dd = _doorPool[doorCount];
+                    dd.Type         = d.RequiredPermissions.ToString();
+                    dd.Name         = d.Name;
+                    dd.ColliderName = colliderName;
+                    dd.Distance     = dist / 50f;
+                    dd.RequiredTier = reqTier;
+                    dd.CanOpen      = playerTier >= reqTier;
+                    dd.IsOpen       = d.IsOpen;
+                    dd.RelX = (d.Position.x - pos.x) / 50f;
+                    dd.RelY = (d.Position.y - pos.y) / 50f;
+                    dd.RelZ = (d.Position.z - pos.z) / 50f;
+                    dd.RealRelX     = d.Position.x - pos.x;
+                    dd.RealRelY     = d.Position.y - pos.y;
+                    dd.RealRelZ     = d.Position.z - pos.z;
+                    _cachedNearDoors.Add(dd);
+                    doorCount++;
+                }
+                catch (Exception ex) { Log.Warn($"[P2] Fallo en asignación final: {ex.Message} puerta={d?.Name}"); continue; }
             }
         }
         protected abstract void _CargarElementosCercanos(Vector3 pos,
@@ -708,7 +700,7 @@ namespace ScpAgent.Bot.Sensors
         }
         private void _CopiarACacheHabitaciones(AgentObservation obs)
         {
-            obs.NearRooms.AddRange(_cachedNearRooms);
+            obs.NearRooms.Clear();
             obs.NearRooms.AddRange(_cachedNearRooms);
         }
         private void _CopiarACacheJugadores(AgentObservation obs)
@@ -749,7 +741,94 @@ namespace ScpAgent.Bot.Sensors
         
         }
 
-        protected abstract void ObtenerListaSalasPriorizadas(int tierTarjeta);
+        private void ObtenerListaSalasPriorizadas(int tierTarjeta)
+        {
+            //List<Habitaciones> listaPriorizada = new List<Habitaciones>();
+            if (_player == null || _player.Transform == null) return;
+
+            foreach (Room sala in _cachedRooms)
+            {
+                // Ignoramos salas desconocidas o zonas muertas
+                
+                if (sala == null || sala.GameObject == null) continue;
+                if (sala.Type == RoomType.Unknown) continue;
+                float distancia = Vector3.Distance(_player.Position, sala.Position);
+                if (distancia > 500f) continue;
+
+                float prioridad = 0;
+
+                // --- LÓGICA DINÁMICA DE PRIORIDADES ---
+                switch (sala.Type)
+                {
+                    case RoomType.Lcz914:
+                        // Si necesita mejorar la tarjeta, 914 es la prioridad máxima absoluta
+                        prioridad = tierTarjeta is >= 1 and < 3 ? 80f : 0f;
+                        break;
+
+                    case RoomType.LczCheckpointB:
+                    case RoomType.LczCheckpointA:
+                        // Si ya tiene tarjeta buena para salir de LCZ, los checkpoints son vitales
+                        prioridad = tierTarjeta >= 3 ? 100f : 0f;
+                        break;
+                    case RoomType.LczPlants:
+                        prioridad = tierTarjeta <= 2 ? 40f : 5f;
+                        break;
+                    case RoomType.LczClassDSpawn:
+                        prioridad = 0;
+                        break;
+
+                    case RoomType.LczArmory:
+                        prioridad = tierTarjeta > 3 ? 60f : 0f;
+                        // Zonas de armas/loot (prioridad media-alta para sobrevivir)
+                        
+                        break;
+                    case RoomType.Lcz330:
+                        prioridad = tierTarjeta == 2 ? 100f : 0f;
+                        break;
+                    case RoomType.Lcz173:
+                    case RoomType.LczGlassBox:
+                    case RoomType.LczCafe:
+                        prioridad = tierTarjeta < 3 ? 100f : 0f;
+                        break;
+                    case RoomType.LczToilets:
+                        prioridad = tierTarjeta < 1 ? 80f : 0f;
+                        break;
+
+
+                    default:
+                        // Pasillos, curvas y salas estándar tienen prioridad baja (solo sirven para transitar)
+                        prioridad = 5f;
+                        break;
+                }
+
+                //float distancia = Vector3.Distance(_player.Position, sala.Position);
+                Vector3 vectorObjetivo = sala.Position - _player.Transform.position;
+                Vector3 dirNormalizada = vectorObjetivo.normalized;
+                float distNormalizada = Mathf.Clamp01(vectorObjetivo.magnitude / RANGO_MAPA);
+                float salaNormX = Mathf.Clamp(sala.Position.x / RANGO_MAPA, -1f, 1f);
+                float salaNormY = Mathf.Clamp(sala.Position.y / RANGO_MAPA, -1f, 1f); // Altura (LCZ vs HCZ)
+                float salaNormZ = Mathf.Clamp(sala.Position.z / RANGO_MAPA, -1f, 1f);
+
+                _roomsPriorizada.Add(new Habitaciones
+                {
+                    NombreHabitacion = sala.Type.ToString(),
+                    IdHabitacion = (int)sala.Type,
+                    PosicionReal = sala.Position,
+                    PosicionNormX = dirNormalizada.x,
+                    PosicionNormY = dirNormalizada.y,
+                    PosicionNormZ = dirNormalizada.z,
+                    PosicionUbiX = salaNormX,
+                    PosicionUbiY = salaNormY,
+                    PosicionUbiZ = salaNormZ,
+                    Prioridad = prioridad/200f,
+                    Distancia = distancia,
+                    DistanciaNormalizada = distNormalizada
+                });
+
+            }
+
+            _roomsPriorizada.Sort(_roomComparison);
+        }
 
         private float _calcularHostilidad(Player player, Player objetivo)
         {

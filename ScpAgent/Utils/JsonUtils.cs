@@ -22,6 +22,7 @@ public static class JsonUtils
         sb.Append("{");
         
         // Físicas y GPS (Precisión 3 decimales)
+        sb.Append("\"FactionId\":"); AppendFloat(sb, obs.FactionId, 3); sb.Append(",");
         sb.Append("\"PosX\":"); AppendFloat(sb, obs.PosX, 3); sb.Append(",");
         sb.Append("\"PosY\":"); AppendFloat(sb, obs.PosY, 3); sb.Append(",");
         sb.Append("\"PosZ\":"); AppendFloat(sb, obs.PosZ, 3); sb.Append(",");
