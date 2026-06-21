@@ -301,7 +301,7 @@ namespace ScpAgent.Bot.Sensors
             Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
             float   ahora    = Time.time;
             
-            _memoriaLifts.MarcarTodosNoVistos();
+            _memoriaLifts.MarcarTodosNoVistosLift();
 
             _liftsConDist.Clear();
             foreach (var l in _cachedLifts)
@@ -320,8 +320,8 @@ namespace ScpAgent.Bot.Sensors
 
                     // Visible ahora — registrar/actualizar memoria
                     int liftId = l.GameObject.GetInstanceID();
-                    _memoriaPuertas.RegistrarVisto(liftId, l.Position, ahora, l.IsMoving);
-                    _memoriaPuertas.TryGet(liftId, out var memActualizada);
+                    _memoriaPuertas.RegistrarVistoLift(liftId, l.Position, ahora, l.IsLocked, l.IsOperative, l.IsMoving, l.CurrentLevel);
+                    _memoriaPuertas.TryGetLift(liftId, out var memActualizada);
                     memActualizada.ReferenciaObjeto = l;
                     _liftsConDist.Add((l, dist));
                 }
@@ -342,6 +342,7 @@ namespace ScpAgent.Bot.Sensors
                 ld.Type         = l.Type.ToString();
                 ld.Distance     = d / 50f;
                 ld.IsLocked     = l.IsLocked;
+                ld.IsClosed     = l.IsOperative;
                 ld.IsMoving     = l.IsMoving;
                 ld.CanUse       = !l.IsMoving;
                 ld.CurrentLevel = l.CurrentLevel;
@@ -355,7 +356,7 @@ namespace ScpAgent.Bot.Sensors
                 liftCount++;
             }
 
-            foreach (var kv in _memoriaLifts.Entradas)
+            foreach (var kv in _memoriaLifts.EntradasLifts)
             {
                 if (liftCount >= 15) break;
                 if (kv.Value.VistoEsteCiclo) continue; // ya procesada arriba
@@ -370,47 +371,30 @@ namespace ScpAgent.Bot.Sensors
 
                 if (liftRef != null && liftRef.GameObject != null)
                 {
-                    l.Type         = l.Type.ToString();;; // no tenemos el wrapper Door a mano, solo posición
-                    l.IsLocked     = l.IsLocked;
-                    l.IsMoving     = l.IsMoving;
-                    l.CanUse       = !l.IsMoving;
-                    l.CurrentLevel = l.CurrentLevel;
+                    l.Type         = liftRef.Type.ToString();;; // no tenemos el wrapper Door a mano, solo posición
                 }
                 else
                 {
                     
                 }
-                
-                dd.Distance     = dist / 50f;
-                dd.IsOpen       = mem.EstadoBoolCache; // último estado conocido
-                dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;
-                dd.RelY         = (mem.UltimaPosicion.y - pos.y) / 50f;
-                dd.RelZ         = (mem.UltimaPosicion.z - pos.z) / 50f;
-                dd.RealRelX     = mem.UltimaPosicion.x - pos.x;
-                dd.RealRelY     = mem.UltimaPosicion.y - pos.y;
-                dd.RealRelZ     = mem.UltimaPosicion.z - pos.z;
-                dd.EsRecordado  = true;
-                dd.Antiguedad   = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO_OBJETOS; // normalizado 0-1
-                _cachedNearDoors.Add(l);
-                doorCount++;
-                                
-                l.Type         = l.Type.ToString();
-                l.Distance     = d / 50f;
-                l.IsLocked     = l.IsLocked;
-                l.IsMoving     = l.IsMoving;
-                l.CanUse       = !l.IsMoving;
-                
-                l.RelX = (l.Position.x - pos.x) / 50f;
-                l.RelY = (l.Position.y - pos.y) / 50f;
-                l.RelZ = (l.Position.z - pos.z) / 50f;
-                l.RealRelX     = l.Position.x - pos.x;
-                l.RealRelY     = l.Position.y - pos.y;
-                l.RealRelZ     = l.Position.z - pos.z;
-                _cachedNearLifts.Add(ld);
+                l.IsLocked     = mem.AscensorCerrado;
+                l.IsClosed     = mem.AscensorOperativo;
+                l.IsMoving     = mem.AscensorMoviendose;
+                l.CanUse       = mem.PuedeUsarse;;                       
+                l.CurrentLevel = mem.NivelActual;
+                l.RelX = (mem.UltimaPosicion.x - pos.x) / 50f;
+                l.RelY = (mem.UltimaPosicion.y - pos.y) / 50f;
+                l.RelZ = (mem.UltimaPosicion.z - pos.z) / 50f;
+                l.RealRelX     = mem.UltimaPosicion.x - pos.x;
+                l.RealRelY     = mem.UltimaPosicion.y - pos.y;
+                l.RealRelZ     = mem.UltimaPosicion.z - pos.z;
+                l.EsRecordado  = true;
+                l.Antiguedad   = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO_OBJETOS;
+                _cachedNearLifts.Add(l);
                 liftCount++;
             }
 
-            _memoriaPuertas.PurgarOlvidados(ahora);
+            _memoriaPuertas.PurgarOlvidadosLift(ahora);
         }
         private void _CargarRooms(AgentObservation obs, int playerTier)
         {
@@ -463,7 +447,7 @@ namespace ScpAgent.Bot.Sensors
             Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
             float   ahora    = Time.time;
 
-            _memoriaPuertas.MarcarTodosNoVistos();
+            _memoriaPuertas.MarcarTodosNoVistosPuerta();
 
             // ── 1. Filtrar por rango y comprobar visibilidad real ────────────────
             _doorsConDist.Clear();
@@ -482,9 +466,10 @@ namespace ScpAgent.Bot.Sensors
                     if (!_EsVisible(misOjos, miMirada, d.Position, dist, d.GameObject)) continue;
 
                     // Visible ahora — registrar/actualizar memoria
+                    int reqTier = GetDoorRequiredTier(d);
                     int doorId = d.GameObject.GetInstanceID();
-                    _memoriaPuertas.RegistrarVisto(doorId, d.Position, ahora, estadoBool: d.IsOpen);
-                    _memoriaPuertas.TryGet(doorId, out var memActualizada);
+                    _memoriaPuertas.RegistrarVistoPuerta(doorId, d.Position, ahora, d.IsOpen, reqTier);
+                    _memoriaPuertas.TryGetDoor(doorId, out var memActualizada);
                     memActualizada.ReferenciaObjeto = d;
                     _doorsConDist.Add((d, dist));
                 }
@@ -538,7 +523,7 @@ namespace ScpAgent.Bot.Sensors
             }
 
             // ── 3. Volcar puertas RECORDADAS (no vistas ahora, dentro de memoria) ─
-            foreach (var kv in _memoriaPuertas.Entradas)
+            foreach (var kv in _memoriaPuertas.EntradasPuertas)
             {
                 if (doorCount >= 15) break;
                 if (kv.Value.VistoEsteCiclo) continue; // ya procesada arriba
@@ -573,13 +558,13 @@ namespace ScpAgent.Bot.Sensors
                 }
                 else
                 {
-                    
+                    //rellenar ----------------------------------------------------------------------------------------------------------------------------------
                 }
                 
                 dd.Distance     = dist / 50f;
                 dd.RequiredTier = 0;
                 
-                dd.IsOpen       = mem.EstadoBoolCache; // último estado conocido
+                dd.IsOpen       = mem.PuertaAbierta; // último estado conocido
                 dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;
                 dd.RelY         = (mem.UltimaPosicion.y - pos.y) / 50f;
                 dd.RelZ         = (mem.UltimaPosicion.z - pos.z) / 50f;
@@ -592,7 +577,7 @@ namespace ScpAgent.Bot.Sensors
                 doorCount++;
             }
 
-            _memoriaPuertas.PurgarOlvidados(ahora);
+            _memoriaPuertas.PurgarOlvidadosPuertas(ahora);
         }
         protected abstract void _CargarElementosCercanos(Vector3 pos,
             float halfX, float halfY, float halfZ,
