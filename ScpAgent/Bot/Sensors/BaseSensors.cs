@@ -8,6 +8,9 @@ using ScpAgent.Bot.Sensors.Intefaces;
 using PlayerRoles;
 using Exiled.API.Enums;
 using System.Linq;
+using ScpAgent.Bot.Sensors.Memory;
+using ScpAgent.Bot.Sensors.Memory.Data;
+
 
 namespace ScpAgent.Bot.Sensors
 {
@@ -86,9 +89,10 @@ namespace ScpAgent.Bot.Sensors
             = new Dictionary<int, MemoriaJugador>();
         protected const float TIEMPO_OLVIDO_OBJETOS = 45f;
 
-        private readonly VisualMemory _memoriaPuertas  = new VisualMemory(TIEMPO_OLVIDO_OBJETOS);
-        private readonly VisualMemory _memoriaLifts    = new VisualMemory(TIEMPO_OLVIDO_OBJETOS);
-        private readonly VisualMemory _memoriaRooms    = new VisualMemory(TIEMPO_OLVIDO_OBJETOS);
+        private readonly VisualMemory <ObjectMemoryDoor> _memoriaPuertas  = new VisualMemory<ObjectMemoryDoor>(TIEMPO_OLVIDO_OBJETOS);
+        private readonly VisualMemory <ObjectMemoryLift> _memoriaLifts    = new VisualMemory<ObjectMemoryLift>(TIEMPO_OLVIDO_OBJETOS);
+
+        //private readonly VisualMemory _memoriaRooms    = new VisualMemory(TIEMPO_OLVIDO_OBJETOS);
 
         protected const float TIEMPO_OLVIDO = 5f;
 
@@ -301,7 +305,7 @@ namespace ScpAgent.Bot.Sensors
             Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
             float   ahora    = Time.time;
             
-            _memoriaLifts.MarcarTodosNoVistosLift();
+            _memoriaLifts.MarcarTodosNoVistos();
 
             _liftsConDist.Clear();
             foreach (var l in _cachedLifts)
@@ -320,9 +324,11 @@ namespace ScpAgent.Bot.Sensors
 
                     // Visible ahora — registrar/actualizar memoria
                     int liftId = l.GameObject.GetInstanceID();
-                    _memoriaPuertas.RegistrarVistoLift(liftId, l.Position, ahora, l.IsLocked, l.IsOperative, l.IsMoving, l.CurrentLevel);
-                    _memoriaPuertas.TryGetLift(liftId, out var memActualizada);
-                    memActualizada.ReferenciaObjeto = l;
+                    var memLifts = _memoriaLifts.ObtenerORegistrar(liftId, l.Position, ahora, l);
+                    memLifts.AscensorCerrado = l.IsLocked; 
+                    memLifts.AscensorOperativo = l.IsOperative; 
+                    memLifts.AscensorMoviendose = l.IsMoving; 
+                    memLifts.NivelActual = l.CurrentLevel; 
                     _liftsConDist.Add((l, dist));
                 }
                 catch { continue; }
@@ -356,9 +362,9 @@ namespace ScpAgent.Bot.Sensors
                 liftCount++;
             }
 
-            foreach (var kv in _memoriaLifts.EntradasLifts)
+            foreach (var kv in _memoriaLifts.Entradas)
             {
-                if (liftCount >= 15) break;
+                if (liftCount >= 3) break;
                 if (kv.Value.VistoEsteCiclo) continue; // ya procesada arriba
 
                 var mem = kv.Value;
@@ -367,7 +373,7 @@ namespace ScpAgent.Bot.Sensors
 
 
                 var l = _liftPool[liftCount];
-                var liftRef = mem.ReferenciaObjeto as Door;
+                var liftRef = mem.ReferenciaObjeto as Lift;
 
                 if (liftRef != null && liftRef.GameObject != null)
                 {
@@ -394,7 +400,7 @@ namespace ScpAgent.Bot.Sensors
                 liftCount++;
             }
 
-            _memoriaPuertas.PurgarOlvidadosLift(ahora);
+            _memoriaLifts.PurgarOlvidados(ahora);
         }
         private void _CargarRooms(AgentObservation obs, int playerTier)
         {
@@ -447,7 +453,7 @@ namespace ScpAgent.Bot.Sensors
             Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
             float   ahora    = Time.time;
 
-            _memoriaPuertas.MarcarTodosNoVistosPuerta();
+            _memoriaPuertas.MarcarTodosNoVistos();
 
             // ── 1. Filtrar por rango y comprobar visibilidad real ────────────────
             _doorsConDist.Clear();
@@ -468,9 +474,9 @@ namespace ScpAgent.Bot.Sensors
                     // Visible ahora — registrar/actualizar memoria
                     int reqTier = GetDoorRequiredTier(d);
                     int doorId = d.GameObject.GetInstanceID();
-                    _memoriaPuertas.RegistrarVistoPuerta(doorId, d.Position, ahora, d.IsOpen, reqTier);
-                    _memoriaPuertas.TryGetDoor(doorId, out var memActualizada);
-                    memActualizada.ReferenciaObjeto = d;
+                    var mem = _memoriaPuertas.ObtenerORegistrar(doorId, d.Position, ahora, d);
+                    mem.PermisoPuerta = reqTier;
+                    mem.PuertaAbierta = d.IsOpen;
                     _doorsConDist.Add((d, dist));
                 }
                 catch { continue; }
@@ -523,7 +529,7 @@ namespace ScpAgent.Bot.Sensors
             }
 
             // ── 3. Volcar puertas RECORDADAS (no vistas ahora, dentro de memoria) ─
-            foreach (var kv in _memoriaPuertas.EntradasPuertas)
+            foreach (var kv in _memoriaPuertas.Entradas)
             {
                 if (doorCount >= 15) break;
                 if (kv.Value.VistoEsteCiclo) continue; // ya procesada arriba
@@ -577,7 +583,7 @@ namespace ScpAgent.Bot.Sensors
                 doorCount++;
             }
 
-            _memoriaPuertas.PurgarOlvidadosPuertas(ahora);
+            _memoriaPuertas.PurgarOlvidados(ahora);
         }
         protected abstract void _CargarElementosCercanos(Vector3 pos,
             float halfX, float halfY, float halfZ,
