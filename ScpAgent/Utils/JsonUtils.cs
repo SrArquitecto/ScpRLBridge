@@ -7,12 +7,13 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using System.Globalization;
+using PlayerRoles;
 
 public static class JsonUtils
 {
     private static readonly string JSON_DONE_TRUE = "{\"Done\":true}";
 
-    public static string ToJson(AgentObservation obs)
+    public static string ToJson(AgentObservation obs, RoleTypeId rol)
     {
         if (obs == null) return "{}";
 
@@ -21,6 +22,7 @@ public static class JsonUtils
         sb.Append("{");
         
         // Físicas y GPS (Precisión 3 decimales)
+        sb.Append("\"FactionId\":"); AppendFloat(sb, obs.FactionId, 3); sb.Append(",");
         sb.Append("\"PosX\":"); AppendFloat(sb, obs.PosX, 3); sb.Append(",");
         sb.Append("\"PosY\":"); AppendFloat(sb, obs.PosY, 3); sb.Append(",");
         sb.Append("\"PosZ\":"); AppendFloat(sb, obs.PosZ, 3); sb.Append(",");
@@ -61,15 +63,34 @@ public static class JsonUtils
         sb.Append("\"ForwardX\":"); AppendFloat(sb, obs.ForwardX, 3); sb.Append(",");
         sb.Append("\"ForwardZ\":"); AppendFloat(sb, obs.ForwardZ, 3);
 
-        // Listas con TRUE ZERO GC ALLOCATION utilizando delegados por referencia de buffer
-        AppendList(sb, "NearKeycards", obs.NearKeycards, (builder, k) => {
-            builder.Append("\"Type\":\"").Append(k.Type ?? "").Append("\",\"Distance\":"); AppendFloat(builder, k.Distance, 3);
-            builder.Append(",\"RelX\":"); AppendFloat(builder, k.RelX, 3);
-            builder.Append(",\"RelY\":"); AppendFloat(builder, k.RelY, 3);
-            builder.Append(",\"RelZ\":"); AppendFloat(builder, k.RelZ, 3);
-            builder.Append(",\"RealRelX\":"); AppendFloat(builder, k.RealRelX, 3);
-            builder.Append(",\"RealRelY\":"); AppendFloat(builder, k.RealRelY, 3);
-            builder.Append(",\"RealRelZ\":"); AppendFloat(builder, k.RealRelZ, 3);
+        AppendList(sb, "NearPlayers", obs.NearPlayers, (builder, pd) => {
+            builder.Append("\"Role\":\"").Append(pd.Role ?? "").Append("\"");
+            builder.Append(",\"FactionId\":").Append(pd.FactionId);
+            builder.Append(",\"Distance\":"); AppendFloat(builder, pd.Distance, 3);
+            builder.Append(",\"RelX\":"); AppendFloat(builder, pd.RelX, 3);
+            builder.Append(",\"RelY\":"); AppendFloat(builder, pd.RelY, 3);
+            builder.Append(",\"RelZ\":"); AppendFloat(builder, pd.RelZ, 3);
+            builder.Append(",\"Hostilidad\":"); AppendFloat(builder, pd.Hostilidad, 2);
+            builder.Append(",\"Health\":"); AppendFloat(builder, pd.Health, 3);
+            builder.Append(",\"MiradaHaciaMi\":"); AppendFloat(builder, pd.MiradaHaciaMi, 2);
+            builder.Append(",\"EsRecordado\":").Append(pd.EsRecordado ? "true" : "false");
+            builder.Append(",\"Antiguedad\":"); AppendFloat(builder, pd.Antiguedad, 2);
+        });
+
+        AppendList(sb, "NearRooms", obs.NearRooms, (builder, r) => {
+            builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\"");
+            builder.Append(",\"Id\":").Append(r.Id);
+            builder.Append(",\"Dist\":"); AppendFloat(builder, r.Dist, 3);
+            builder.Append(",\"Prioridad\":"); AppendFloat(builder, r.Prioridad, 1);
+            builder.Append(",\"PosX\":"); AppendFloat(builder, r.PosX, 3);
+            builder.Append(",\"PosY\":"); AppendFloat(builder, r.PosY, 3);
+            builder.Append(",\"PosZ\":"); AppendFloat(builder, r.PosZ, 3);
+            builder.Append(",\"UbiX\":"); AppendFloat(builder, r.UbiX, 3);
+            builder.Append(",\"UbiY\":"); AppendFloat(builder, r.UbiY, 3);
+            builder.Append(",\"UbiZ\":"); AppendFloat(builder, r.UbiZ, 3);
+            builder.Append(",\"NormX\":"); AppendFloat(builder, r.NormX, 3);
+            builder.Append(",\"NormY\":"); AppendFloat(builder, r.NormY, 3);
+            builder.Append(",\"NormZ\":"); AppendFloat(builder, r.NormZ, 3);
         });
 
         AppendList(sb, "NearDoors", obs.NearDoors, (builder, d) => {
@@ -99,31 +120,35 @@ public static class JsonUtils
             builder.Append(",\"RealRelZ\":"); AppendFloat(builder, l.RealRelZ, 3);
         });
 
-        AppendList(sb, "NearLockers", obs.NearLockers, (builder, l) => {
-            builder.Append("\"Type\":\"").Append(l.Type ?? "").Append("\",\"HasIsOpen\":").Append(l.HasIsOpen ? "true" : "false");
-            builder.Append(",\"Distance\":"); AppendFloat(builder, l.Distance, 3);
-            builder.Append(",\"RelX\":"); AppendFloat(builder, l.RelX, 3);
-            builder.Append(",\"RelY\":"); AppendFloat(builder, l.RelY, 3);
-            builder.Append(",\"RelZ\":"); AppendFloat(builder, l.RelZ, 3);
-            builder.Append(",\"RealRelX\":"); AppendFloat(builder, l.RealRelX, 3);
-            builder.Append(",\"RealRelY\":"); AppendFloat(builder, l.RealRelY, 3);
-            builder.Append(",\"RealRelZ\":"); AppendFloat(builder, l.RealRelZ, 3);
+        if (
+        rol == RoleTypeId.ChaosConscript || rol == RoleTypeId.ChaosMarauder || rol == RoleTypeId.ChaosRepressor || 
+        rol == RoleTypeId.ChaosRifleman || rol == RoleTypeId.NtfCaptain || rol == RoleTypeId.NtfPrivate || rol == RoleTypeId.NtfSergeant ||
+        rol == RoleTypeId.NtfSpecialist || rol == RoleTypeId.FacilityGuard || rol == RoleTypeId.ClassD || rol == RoleTypeId.Scientist
+        )
+        {
+            // Listas con TRUE ZERO GC ALLOCATION utilizando delegados por referencia de buffer
+            AppendList(sb, "NearKeycards", obs.NearKeycards, (builder, k) => {
+                builder.Append("\"Type\":\"").Append(k.Type ?? "").Append("\",\"Distance\":"); AppendFloat(builder, k.Distance, 3);
+                builder.Append(",\"RelX\":"); AppendFloat(builder, k.RelX, 3);
+                builder.Append(",\"RelY\":"); AppendFloat(builder, k.RelY, 3);
+                builder.Append(",\"RelZ\":"); AppendFloat(builder, k.RelZ, 3);
+                builder.Append(",\"RealRelX\":"); AppendFloat(builder, k.RealRelX, 3);
+                builder.Append(",\"RealRelY\":"); AppendFloat(builder, k.RealRelY, 3);
+                builder.Append(",\"RealRelZ\":"); AppendFloat(builder, k.RealRelZ, 3);
         });
 
-        AppendList(sb, "NearRooms", obs.NearRooms, (builder, r) => {
-            builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\",\"Dist\":"); AppendFloat(builder, r.Dist, 3);
-            builder.Append(",\"Prioridad\":"); AppendFloat(builder, r.Prioridad, 1);
-            builder.Append(",\"PosX\":"); AppendFloat(builder, r.PosX, 3);
-            builder.Append(",\"PosY\":"); AppendFloat(builder, r.PosY, 3);
-            builder.Append(",\"PosZ\":"); AppendFloat(builder, r.PosZ, 3);
-            builder.Append(",\"UbiX\":"); AppendFloat(builder, r.UbiX, 3);
-            builder.Append(",\"UbiY\":"); AppendFloat(builder, r.UbiY, 3);
-            builder.Append(",\"UbiZ\":"); AppendFloat(builder, r.UbiZ, 3);
-            builder.Append(",\"NormX\":"); AppendFloat(builder, r.NormX, 3);
-            builder.Append(",\"NormY\":"); AppendFloat(builder, r.NormY, 3);
-            builder.Append(",\"NormZ\":"); AppendFloat(builder, r.NormZ, 3);
+            AppendList(sb, "NearLockers", obs.NearLockers, (builder, l) => {
+                builder.Append("\"Type\":\"").Append(l.Type ?? "").Append("\",\"HasIsOpen\":").Append(l.HasIsOpen ? "true" : "false");
+                builder.Append(",\"Distance\":"); AppendFloat(builder, l.Distance, 3);
+                builder.Append(",\"RelX\":"); AppendFloat(builder, l.RelX, 3);
+                builder.Append(",\"RelY\":"); AppendFloat(builder, l.RelY, 3);
+                builder.Append(",\"RelZ\":"); AppendFloat(builder, l.RelZ, 3);
+                builder.Append(",\"RealRelX\":"); AppendFloat(builder, l.RealRelX, 3);
+                builder.Append(",\"RealRelY\":"); AppendFloat(builder, l.RealRelY, 3);
+                builder.Append(",\"RealRelZ\":"); AppendFloat(builder, l.RealRelZ, 3);
         });
-
+        }
+        
         sb.Append(",\"Done\":").Append(obs.Done ? "true" : "false");
         sb.Append("}");
         return sb.ToString();

@@ -1,27 +1,29 @@
 using ScpAgent.Bot.Data;
 using Exiled.API.Features;
-using ScpAgent.Components;
 using PlayerRoles;
-using System.Numerics;
-using UnityEngine;
+using ScpAgent.Bot.Sensors.Intefaces;
+using UnityEngine.PlayerLoop;
+using Exiled.API.Features.Components;
 
 namespace ScpAgent.Bot.Interfaces 
 {
     public interface IAgentController 
     {
         int AgentId { get; }
-
+        public float PendingReward { get; set; }
         bool _isRespawning { get; }
         Player ExiledPlayer { get; }
-        int contadorSuscripciones { get; }
-        
+        int contadorSuscripciones { get; set;}
+        bool EpisodioTerminado { get; set; }
+        void Init(ScpAgent.Bot.Simulation.FakeConnection fakeConnection);
+
         // Métodos clave que invoca el ControlServer
         void ReceiveAction(AgentAction action);
         void ActualizarFisica(float deltaTime);
         void EjecutarRespawn();
         public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD);     
         void SetPlayer(Player exiledPlayer);
-        void SetSensores(AgentSensors sensores);
+        void SetSensores(ISensors sensores);
         void ResetearPosicionInicial(UnityEngine.Vector3 posicionspawn);
         void ResetEstado();
         AgentObservation GetObservation(float deltaTime);

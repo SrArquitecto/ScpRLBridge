@@ -31,10 +31,14 @@ namespace ScpAgent
             UnityEngine.Application.targetFrameRate = -1;
 
             Instance = this;
+            
+            AgentManager = new AgentManager(this);
             ControlServer = new ControlServer();
             ControlServer.IniciarServidor(Config.Port);
-            AgentManager = new AgentManager(this);
+            
             RoundManager = new RoundManager(this);
+            
+            
             // 2. INICIALIZACIÓN DE LA RED
             // Instanciamos el servidor TCP y lo encendemos en el puerto configurado
             
