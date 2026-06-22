@@ -37,8 +37,20 @@ namespace ScpAgent.Bot.Sensors.Data
         public bool HasKeycard { get; set; }
         public int KeycardTier { get; set; }
 
+
+        public List<InventoryItemData> Inventory { get; set; } = new List<InventoryItemData>();
+        public int   InventorySlots  { get; set; } // slots libres (max 8)
+            // Munición en reserva por tipo — separada del inventario
+        public int   Ammo9x19        { get; set; }
+        public int   Ammo12gauge     { get; set; }
+        public int   Ammo556x45      { get; set; }
+        public int   Ammo762x39      { get; set; }
+        public int   Ammo44cal       { get; set; }
+
+
+
         // Listas de Entorno Cercano
-        public List<KeycardData> NearKeycards { get; set; } = new List<KeycardData>();
+        public List<ItemData> NearItems { get; set; } = new List<ItemData>();
         public List<DoorData> NearDoors { get; set; } = new List<DoorData>();
         public List<LiftData> NearLifts { get; set; } = new List<LiftData>();
         public List<LockerData> NearLockers { get; set; } = new List<LockerData>();
@@ -94,6 +106,15 @@ namespace ScpAgent.Bot.Sensors.Data
         public float  RealRelZ  { get; set; }
         public bool   EsRecordado { get; set; }
         public float  Antiguedad  { get; set; }
+    }
+
+    public class InventoryItemData
+    {
+        public string Type       { get; set; }
+        public string Category   { get; set; }
+        public int    Tier       { get; set; }
+        public bool   IsEquipped { get; set; }
+        public int    Ammo       { get; set; } // balas EN el cargador del arma equipada (no reserva)
     }
 
 

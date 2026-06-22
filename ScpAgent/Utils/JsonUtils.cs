@@ -1,14 +1,8 @@
-using ScpAgent.Bot.Data;
-using System.Text;
-using System.Globalization;
-using System.Collections.Generic;
-
-using System;
 using System.Text;
 using System.Collections.Generic;
-using System.Globalization;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Data;
+
 
 public static class JsonUtils
 {
@@ -18,11 +12,12 @@ public static class JsonUtils
     {
         if (obs == null) return "{}";
 
-        // Inicializamos con suficiente capacidad para evitar redimensionamientos del buffer
-        StringBuilder sb = new StringBuilder(4096);
+        // Inicializamos con mayor capacidad debido a las nuevas listas de inventario y datos extendidos
+        StringBuilder sb = new StringBuilder(8192);
         sb.Append("{");
         
         // Físicas y GPS (Precisión 3 decimales)
+        sb.Append("\"Faccion\":\"").Append(obs.Faction.ToString() ?? "Unknown").Append("\",");
         sb.Append("\"FactionId\":"); AppendFloat(sb, obs.FactionId, 3); sb.Append(",");
         sb.Append("\"PosX\":"); AppendFloat(sb, obs.PosX, 3); sb.Append(",");
         sb.Append("\"PosY\":"); AppendFloat(sb, obs.PosY, 3); sb.Append(",");
@@ -49,11 +44,30 @@ public static class JsonUtils
         sb.Append("\"Room\":\"").Append(obs.Room ?? "").Append("\",");
         sb.Append("\"HasKeycard\":").Append(obs.HasKeycard ? "true" : "false").Append(",");
         sb.Append("\"KeycardTier\":").Append(obs.KeycardTier).Append(",");
+        sb.Append("\"CanInteract\":").Append(obs.CanInteract).Append(",");
         sb.Append("\"LastAction\":").Append(obs.LastAction).Append(",");
+        sb.Append("\"TimeLastAction\":"); AppendFloat(sb, obs.TimeLastAction, 3); sb.Append(",");
         sb.Append("\"Reward\":"); AppendFloat(sb, obs.Reward, 4); sb.Append(",");
         
+        // Inventario y Municiones en Reserva
+        sb.Append("\"InventorySlots\":").Append(obs.InventorySlots).Append(",");
+        sb.Append("\"Ammo9x19\":").Append(obs.Ammo9x19).Append(",");
+        sb.Append("\"Ammo12gauge\":").Append(obs.Ammo12gauge).Append(",");
+        sb.Append("\"Ammo556x45\":").Append(obs.Ammo556x45).Append(",");
+        sb.Append("\"Ammo762x39\":").Append(obs.Ammo762x39).Append(",");
+        sb.Append("\"Ammo44cal\":").Append(obs.Ammo44cal);
+
+        // Lista de Inventario
+        AppendList(sb, "Inventory", obs.Inventory, (builder, item) => {
+            builder.Append("\"Type\":\"").Append(item.Type ?? "").Append("\"");
+            builder.Append(",\"Category\":\"").Append(item.Category ?? "").Append("\"");
+            builder.Append(",\"Tier\":").Append(item.Tier);
+            builder.Append(",\"IsEquipped\":").Append(item.IsEquipped ? "true" : "false");
+            builder.Append(",\"Ammo\":").Append(item.Ammo);
+        });
+        
         // Datos de Aim y Hit
-        sb.Append("\"AimTarget\":\"").Append(obs.AimTarget ?? "").Append("\",");
+        sb.Append(",\"AimTarget\":\"").Append(obs.AimTarget ?? "").Append("\",");
         sb.Append("\"AimDistance\":"); AppendFloat(sb, obs.AimDistance, 3); sb.Append(",");
         sb.Append("\"AimRoom\":\"").Append(obs.AimRoom ?? "").Append("\",");
         sb.Append("\"AimDoorName\":\"").Append(obs.AimDoorName ?? "").Append("\",");
@@ -64,8 +78,10 @@ public static class JsonUtils
         sb.Append("\"ForwardX\":"); AppendFloat(sb, obs.ForwardX, 3); sb.Append(",");
         sb.Append("\"ForwardZ\":"); AppendFloat(sb, obs.ForwardZ, 3);
 
+        // Entidades y Entorno Cercano con Persistencia de Memoria
         AppendList(sb, "NearPlayers", obs.NearPlayers, (builder, pd) => {
             builder.Append("\"Role\":\"").Append(pd.Role ?? "").Append("\"");
+            builder.Append(",\"Team\":\"").Append(pd.Team ?? "").Append("\"");
             builder.Append(",\"FactionId\":").Append(pd.FactionId);
             builder.Append(",\"Distance\":"); AppendFloat(builder, pd.Distance, 3);
             builder.Append(",\"RelX\":"); AppendFloat(builder, pd.RelX, 3);
@@ -82,6 +98,7 @@ public static class JsonUtils
             builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\"");
             builder.Append(",\"Id\":").Append(r.Id);
             builder.Append(",\"Dist\":"); AppendFloat(builder, r.Dist, 3);
+            builder.Append(",\"DistNorm\":"); AppendFloat(builder, r.DistNorm, 4);
             builder.Append(",\"Prioridad\":"); AppendFloat(builder, r.Prioridad, 1);
             builder.Append(",\"PosX\":"); AppendFloat(builder, r.PosX, 3);
             builder.Append(",\"PosY\":"); AppendFloat(builder, r.PosY, 3);
@@ -92,12 +109,14 @@ public static class JsonUtils
             builder.Append(",\"NormX\":"); AppendFloat(builder, r.NormX, 3);
             builder.Append(",\"NormY\":"); AppendFloat(builder, r.NormY, 3);
             builder.Append(",\"NormZ\":"); AppendFloat(builder, r.NormZ, 3);
+            builder.Append(",\"EsRecordado\":").Append(r.EsRecordado ? "true" : "false");
+            builder.Append(",\"Antiguedad\":"); AppendFloat(builder, r.Antiguedad, 2);
         });
 
         AppendList(sb, "NearDoors", obs.NearDoors, (builder, d) => {
             builder.Append("\"Name\":\"").Append(d.Name ?? "").Append("\",\"ColliderName\":\"").Append(d.ColliderName ?? "");
             builder.Append("\",\"Distance\":"); AppendFloat(builder, d.Distance, 3);
-            builder.Append(",\"RequiredTier\":").Append(d.RequiredTier); // Corregido: Sin comillas para Python
+            builder.Append(",\"RequiredTier\":").Append(d.RequiredTier);
             builder.Append(",\"CanOpen\":").Append(d.CanOpen ? "true" : "false");
             builder.Append(",\"IsOpen\":").Append(d.IsOpen ? "true" : "false");
             builder.Append(",\"RelX\":"); AppendFloat(builder, d.RelX, 3);
@@ -106,11 +125,15 @@ public static class JsonUtils
             builder.Append(",\"RealRelX\":"); AppendFloat(builder, d.RealRelX, 3);
             builder.Append(",\"RealRelY\":"); AppendFloat(builder, d.RealRelY, 3);
             builder.Append(",\"RealRelZ\":"); AppendFloat(builder, d.RealRelZ, 3);
+            builder.Append(",\"EsRecordado\":").Append(d.EsRecordado ? "true" : "false");
+            builder.Append(",\"Antiguedad\":"); AppendFloat(builder, d.Antiguedad, 2);
         });
 
         AppendList(sb, "NearLifts", obs.NearLifts, (builder, l) => {
             builder.Append("\"Type\":\"").Append(l.Type ?? "").Append("\",\"Distance\":"); AppendFloat(builder, l.Distance, 3);
             builder.Append(",\"IsMoving\":").Append(l.IsMoving ? "true" : "false");
+            builder.Append(",\"IsLocked\":").Append(l.IsLocked ? "true" : "false");
+            builder.Append(",\"IsClosed\":").Append(l.IsClosed ? "true" : "false");
             builder.Append(",\"CanUse\":").Append(l.CanUse ? "true" : "false");
             builder.Append(",\"CurrentLevel\":").Append(l.CurrentLevel);
             builder.Append(",\"RelX\":"); AppendFloat(builder, l.RelX, 3);
@@ -119,27 +142,38 @@ public static class JsonUtils
             builder.Append(",\"RealRelX\":"); AppendFloat(builder, l.RealRelX, 3);
             builder.Append(",\"RealRelY\":"); AppendFloat(builder, l.RealRelY, 3);
             builder.Append(",\"RealRelZ\":"); AppendFloat(builder, l.RealRelZ, 3);
+            builder.Append(",\"EsRecordado\":").Append(l.EsRecordado ? "true" : "false");
+            builder.Append(",\"Antiguedad\":"); AppendFloat(builder, l.Antiguedad, 2);
         });
 
+        // Filtrado de interacción exclusivo para roles humanos
         if (
-        rol == RoleTypeId.ChaosConscript || rol == RoleTypeId.ChaosMarauder || rol == RoleTypeId.ChaosRepressor || 
-        rol == RoleTypeId.ChaosRifleman || rol == RoleTypeId.NtfCaptain || rol == RoleTypeId.NtfPrivate || rol == RoleTypeId.NtfSergeant ||
-        rol == RoleTypeId.NtfSpecialist || rol == RoleTypeId.FacilityGuard || rol == RoleTypeId.ClassD || rol == RoleTypeId.Scientist
+            rol == RoleTypeId.ChaosConscript || rol == RoleTypeId.ChaosMarauder || rol == RoleTypeId.ChaosRepressor || 
+            rol == RoleTypeId.ChaosRifleman || rol == RoleTypeId.NtfCaptain || rol == RoleTypeId.NtfPrivate || rol == RoleTypeId.NtfSergeant ||
+            rol == RoleTypeId.NtfSpecialist || rol == RoleTypeId.FacilityGuard || rol == RoleTypeId.ClassD || rol == RoleTypeId.Scientist
         )
         {
-            // Listas con TRUE ZERO GC ALLOCATION utilizando delegados por referencia de buffer
-            AppendList(sb, "NearKeycards", obs.NearKeycards, (builder, k) => {
-                builder.Append("\"Type\":\"").Append(k.Type ?? "").Append("\",\"Distance\":"); AppendFloat(builder, k.Distance, 3);
-                builder.Append(",\"RelX\":"); AppendFloat(builder, k.RelX, 3);
-                builder.Append(",\"RelY\":"); AppendFloat(builder, k.RelY, 3);
-                builder.Append(",\"RelZ\":"); AppendFloat(builder, k.RelZ, 3);
-                builder.Append(",\"RealRelX\":"); AppendFloat(builder, k.RealRelX, 3);
-                builder.Append(",\"RealRelY\":"); AppendFloat(builder, k.RealRelY, 3);
-                builder.Append(",\"RealRelZ\":"); AppendFloat(builder, k.RealRelZ, 3);
-        });
+            // SUSTITUCIÓN: Se procesa 'NearItems' mapeando la estructura ItemData completa
+            AppendList(sb, "NearItems", obs.NearItems, (builder, item) => {
+                builder.Append("\"Type\":\"").Append(item.Type ?? "").Append("\"");
+                builder.Append(",\"Category\":\"").Append(item.Category ?? "").Append("\"");
+                builder.Append(",\"Prioridad\":"); AppendFloat(builder, item.Prioridad, 2);
+                builder.Append(",\"Tier\":").Append(item.Tier);
+                builder.Append(",\"Distance\":"); AppendFloat(builder, item.Distance, 3);
+                builder.Append(",\"RelX\":"); AppendFloat(builder, item.RelX, 3);
+                builder.Append(",\"RelY\":"); AppendFloat(builder, item.RelY, 3);
+                builder.Append(",\"RelZ\":"); AppendFloat(builder, item.RelZ, 3);
+                builder.Append(",\"RealRelX\":"); AppendFloat(builder, item.RealRelX, 3);
+                builder.Append(",\"RealRelY\":"); AppendFloat(builder, item.RealRelY, 3);
+                builder.Append(",\"RealRelZ\":"); AppendFloat(builder, item.RealRelZ, 3);
+                builder.Append(",\"EsRecordado\":").Append(item.EsRecordado ? "true" : "false");
+                builder.Append(",\"Antiguedad\":"); AppendFloat(builder, item.Antiguedad, 2);
+            });
 
             AppendList(sb, "NearLockers", obs.NearLockers, (builder, l) => {
-                builder.Append("\"Type\":\"").Append(l.Type ?? "").Append("\",\"HasIsOpen\":").Append(l.HasIsOpen ? "true" : "false");
+                builder.Append("\"Type\":\"").Append(l.Type ?? "").Append("\"");
+                builder.Append(",\"HasIsOpen\":").Append(l.HasIsOpen ? "true" : "false");
+                builder.Append(",\"IsOpen\":").Append(l.IsOpen ? "true" : "false");
                 builder.Append(",\"Distance\":"); AppendFloat(builder, l.Distance, 3);
                 builder.Append(",\"RelX\":"); AppendFloat(builder, l.RelX, 3);
                 builder.Append(",\"RelY\":"); AppendFloat(builder, l.RelY, 3);
@@ -147,7 +181,9 @@ public static class JsonUtils
                 builder.Append(",\"RealRelX\":"); AppendFloat(builder, l.RealRelX, 3);
                 builder.Append(",\"RealRelY\":"); AppendFloat(builder, l.RealRelY, 3);
                 builder.Append(",\"RealRelZ\":"); AppendFloat(builder, l.RealRelZ, 3);
-        });
+                builder.Append(",\"EsRecordado\":").Append(l.EsRecordado ? "true" : "false");
+                builder.Append(",\"Antiguedad\":"); AppendFloat(builder, l.Antiguedad, 2);
+            });
         }
         
         sb.Append(",\"Done\":").Append(obs.Done ? "true" : "false");
@@ -182,7 +218,6 @@ public static class JsonUtils
             for (int i = 0; i < decimals; i++) inlineMultiplier *= 10;
         }
 
-        // Redondeo aritmético manual rápido y seguro para números positivos (.5f)
         long total = (long)(val * inlineMultiplier + 0.5f);
         long integerPart = total / inlineMultiplier;
         long fractionalPart = total % inlineMultiplier;
@@ -196,7 +231,7 @@ public static class JsonUtils
             while (check > 0)
             {
                 long digit = fractionalPart / check;
-                sb.Append((char)('0' + digit)); // Inyección de carácter pura sin boxing
+                sb.Append((char)('0' + digit));
                 fractionalPart %= check;
                 check /= 10;
             }
@@ -216,3 +251,4 @@ public static class JsonUtils
         sb.Append("]");
     }
 }
+

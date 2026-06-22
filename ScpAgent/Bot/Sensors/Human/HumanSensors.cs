@@ -14,6 +14,7 @@ using ScpAgent.Bot.Sensors.Data;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Memory;
 using ScpAgent.Bot.Sensors.Memory.Data;
+using Exiled.API.Enums;
 
 namespace ScpAgent.Bot.Sensors
 {
@@ -60,6 +61,7 @@ namespace ScpAgent.Bot.Sensors
         // Se llena la primera vez que se procesa cada puerta y se reutiliza
 
         //refencias a las funciones de las estrategias:
+        private readonly InventoryItemData[] _inventoryPool = new InventoryItemData[8];
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -74,6 +76,7 @@ namespace ScpAgent.Bot.Sensors
             for (int i = 0; i < _keycardPool.Length; i++) _keycardPool[i] = new KeycardData();
             for (int i = 0; i < _lockerPool.Length;  i++) _lockerPool[i]  = new LockerData();
             for (int i = 0; i < _itemPool.Length;  i++) _itemPool[i]  = new ItemData();
+            for (int i = 0; i < _inventoryPool.Length;  i++) _inventoryPool[i]  = new InventoryItemData();
         }
 
         public void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
@@ -114,6 +117,7 @@ namespace ScpAgent.Bot.Sensors
 
             _CargarElementosCercanos(pos, data.halfX, data.halfY, data.halfZ, playerTier, observation);
             _ProcesarAimRaycast(observation);
+            _CargarInventario(observation);
 
             bool canInteract = (observation.AimTarget == "Door" ||
                                 observation.AimTarget == "Locker" ||
@@ -153,10 +157,10 @@ namespace ScpAgent.Bot.Sensors
             //_doorColliderCache.Clear();
             _frameCounter = 0;
         
-            try { _CargarKeycards(pos, halfX, halfY, halfZ); }
+            try { _CargarItems(pos); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en KEYCARDS: {ex.Message}"); }
 
-            try { _CargarLockers(pos, halfX, halfY, halfZ); }
+            try { _CargarLockers(pos); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en LOCKERS: {ex.Message}"); }
         
             float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
@@ -300,7 +304,7 @@ namespace ScpAgent.Bot.Sensors
         }
 
         
-        private void _CargarLockers(Vector3 pos, float halfX, float halfY, float halfZ)
+        private void _CargarLockers(Vector3 pos)
         {
             if (_cachedLockers == null) _cachedLockers = new List<Locker>(Locker.List);
             else { _cachedLockers.Clear(); _cachedLockers.AddRange(Locker.List); }
@@ -421,7 +425,7 @@ namespace ScpAgent.Bot.Sensors
             _memoriaLockers.PurgarOlvidados(ahora);
         }
 
-        private void _CargarItems(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ)
+        private void _CargarItems(Vector3 pos)
         {
             if (_cachedItems == null)
                 _cachedItems = new List<Pickup>(Pickup.List);
@@ -522,6 +526,56 @@ namespace ScpAgent.Bot.Sensors
             _memoriaItems.PurgarOlvidados(ahora);
         }
 
+        private void _CargarInventario(AgentObservation obs)
+        {
+            obs.Inventory.Clear();
+            if (_player == null || !_player.IsAlive) return;
+
+            var itemEquipado = _player.CurrentItem;
+            int slotIndex = 0;
+
+            foreach (var item in _player.Items)
+            {
+                if (slotIndex >= 8) break;
+                if (item == null) continue;
+
+                var inv = _inventoryPool[slotIndex];
+                inv.Type       = item.Type.ToString();
+                inv.Category   = _fnCategoria?.Invoke(item.Type) ?? "Other";
+                inv.Tier       = GetKeycardTier(item.Type);
+                inv.IsEquipped = itemEquipado != null && item.Serial == itemEquipado.Serial;
+                inv.Ammo       = 0;
+
+                // Balas en cargador solo del arma equipada
+                try
+                {
+                    if (inv.IsEquipped)
+                    {
+                        var firearmsItem = item as Exiled.API.Features.Items.Firearm;
+                        if (firearmsItem != null)
+                            inv.Ammo = firearmsItem.MagazineAmmo;
+                    }
+                }
+                catch { }
+
+                obs.Inventory.Add(inv);
+                slotIndex++;
+            }
+
+            obs.InventorySlots = 8 - slotIndex;
+
+            // Munición en reserva — sistema separado del inventario
+            try
+            {
+                obs.Ammo9x19    = _player.GetAmmo(AmmoType.Nato9);
+                obs.Ammo12gauge = _player.GetAmmo(AmmoType.Ammo12Gauge);
+                obs.Ammo556x45  = _player.GetAmmo(AmmoType.Nato556);
+                obs.Ammo762x39  = _player.GetAmmo(AmmoType.Nato762);
+                obs.Ammo44cal   = _player.GetAmmo(AmmoType.Ammo44Cal);
+            }
+            catch { }
+        }
+
         // ───────────────────────────────────────────────────────────────────────
         // AIM RAYCAST
         // ───────────────────────────────────────────────────────────────────────
@@ -529,9 +583,9 @@ namespace ScpAgent.Bot.Sensors
 
         protected override void _CopiarACache(AgentObservation obs)
         {
-            obs.NearKeycards.Clear();
+            obs.NearItems.Clear();
             obs.NearLockers.Clear();
-            obs.NearKeycards.AddRange(_cachedNearKeycards);
+            obs.NearItems.AddRange(_cachedNearItems);
             obs.NearLockers.AddRange(_cachedNearLockers);
         }
         
