@@ -1,7 +1,9 @@
+using System;
 using ScpAgent.Bot.Data;
 using Exiled.API.Features;
 using Exiled.API.Enums;
 using PlayerRoles;
+using ScpAgent.Bot.Sensors.Data;
 
 namespace ScpAgent.Bot.Sensors.Intefaces
 {
@@ -14,5 +16,6 @@ namespace ScpAgent.Bot.Sensors.Intefaces
         void ResetEstado();
         void Destruir();
         void MarcarRoomDescubierta(Room room);
+        void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria);
     }
 }

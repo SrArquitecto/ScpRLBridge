@@ -3,7 +3,7 @@ using UnityEngine;
 using Exiled.API.Features;
 using PlayerRoles;
 
-namespace ScpAgent.Bot.Data
+namespace ScpAgent.Bot.Sensors.Data
 {
     public class AgentObservation
     {
@@ -78,6 +78,24 @@ namespace ScpAgent.Bot.Data
         public bool EsRecordado {get; set;}
         public float Antiguedad {get; set;}
     }
+
+    public class ItemData
+    {
+        public string Type      { get; set; }
+        public string Category  { get; set; }
+        public float  Prioridad { get; set; }
+        public int    Tier      { get; set; } // ← nuevo: 0 si no es keycard, 1-5 si lo es
+        public float  Distance  { get; set; }
+        public float  RelX      { get; set; }
+        public float  RelY      { get; set; }
+        public float  RelZ      { get; set; }
+        public float  RealRelX  { get; set; }
+        public float  RealRelY  { get; set; }
+        public float  RealRelZ  { get; set; }
+        public bool   EsRecordado { get; set; }
+        public float  Antiguedad  { get; set; }
+    }
+
 
     public class DoorData
     {
@@ -176,7 +194,7 @@ namespace ScpAgent.Bot.Data
     public class ActorData
     {
         public string Role { get; set; }     // Ej: "ClassD", "Scp173", "Scientist"
-        public int FactionId { get; set; }
+        public float FactionId { get; set; }
         public float Hostilidad { get; set; }
         public string Team { get; set; }     // Ej: "SCP", "Foundation", "Chaos"
         public float RelX { get; set; }

@@ -7,6 +7,7 @@ using UnityEngine;
 using PlayerRoles;
 using Mirror;
 using MEC;
+using ScpAgent.Bot.Sensors.Data;
 using ScpAgent.Bot.Data;
 using ScpAgent.Bot.Interfaces;
 using ScpAgent.Bot.Strategies.Interfaces;
@@ -15,12 +16,36 @@ using Exiled.API.Features.Doors;
 using ScpAgent.Managers;
 using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Sensors;
-
-
-
+using Exiled.Events.EventArgs.Player;
+using Exiled.API.Enums;
 
 namespace ScpAgent.Bot
 {
+
+    public class AgentContext
+    {
+        public Player         Player      { get; private set; }
+        public int            AgentId     { get; private set; }
+        public RoleTypeId     Rol         { get; private set; }
+        public Func<float>    GetReward   { get; private set; } // leer recompensa acumulada
+        public Action<float>  AddReward   { get; private set; } // añadir recompensa
+        public Action         EndEpisode  { get; private set; } // marcar episodio terminado
+
+        public AgentContext(int agentId, RoleTypeId rol,
+            Func<float> getReward, Action<float> addReward, Action endEpisode)
+        {
+            AgentId    = agentId;
+            Rol        = rol;
+            GetReward  = getReward;
+            AddReward  = addReward;
+            EndEpisode = endEpisode;
+        }
+
+        // ScpAgentBot actualiza Player tras cada respawn sin recrear el contexto
+        public void ActualizarPlayer(Player p) => Player = p;
+    }
+
+
     /// <summary>
     /// Representa un agente de IA (bot ClassD) dentro del servidor SCP:SL.
     /// Encapsula el spawn, control físico, cámara, sensores y recompensas.
@@ -33,7 +58,7 @@ namespace ScpAgent.Bot
         // ── Identidad ───────────────────────────────────────────────────────────
         public int AgentId { get; private set; }
         public Player ExiledPlayer { get; set; }
-        public IAgentRoleStrategy Strategy;
+        public IAgentRoleStrategyBase Strategy;
         public RoleTypeId rol;
         public string Nickname;
 
@@ -43,6 +68,7 @@ namespace ScpAgent.Bot
 
         // ── Sensores ────────────────────────────────────────────────────────────
         private ISensors _sensores;
+        private AgentContext _ctx;
 
         // ── Recompensa y estado de episodio ─────────────────────────────────────
         public float PendingReward { get; set; } = 0f;
@@ -50,7 +76,7 @@ namespace ScpAgent.Bot
 
         // ── Referencia al GameObject (no cambia aunque el wrapper Player quede stale) ──
         private GameObject _botGameObject;
-        private readonly IAgentRoleStrategy _roleStrategy;
+        private  IAgentRoleStrategyBase _strategy;
 
         // ── Reflection cache para FpcMouseLook ─────────────────────────────────
         private FieldInfo _fieldCurH;
@@ -69,13 +95,14 @@ namespace ScpAgent.Bot
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
-        public ScpAgentBot(string nickname, int id, IAgentRoleStrategy strategy, RoleTypeId role = RoleTypeId.ClassD)
+        public ScpAgentBot(string nickname, int id, RoleTypeId role = RoleTypeId.ClassD)
         {
             AgentId   = id;
             Nickname = nickname;
-            Strategy = strategy;
+            //Strategy = strategy;
             //_fakeConn = fakeConn; // ← recibida desde AgentManager, no creada aquí
             rol = role;
+            Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
             
             // 1. Clonar el prefab del jugador
         }
@@ -99,13 +126,21 @@ namespace ScpAgent.Bot
             _cc = _botGameObject.GetComponent<CharacterController>();
             if (_cc == null) _cc = _botGameObject.AddComponent<CharacterController>();
 
+            // Crear contexto con lambdas que apuntan a los campos del bot
+            _ctx = new AgentContext(
+                agentId:   AgentId,
+                rol:       rol,
+                getReward: () => PendingReward,
+                addReward: r => PendingReward += r,
+                endEpisode: () => EpisodioTerminado = true
+            );
             // 5. CRÍTICO: refrescar wrapper tras Role.Set
             _initDelayHandle = Timing.CallDelayed(1f, () =>
             {
                 var freshPlayer = Player.Get(_botGameObject);
                 if (freshPlayer != null)
                 {
-                    ExiledPlayer = freshPlayer;
+                    SetPlayer(freshPlayer);
                     Log.Debug($"[ScpAgentBot] Bot {AgentId} ({Nickname}) — wrapper refrescado. " +
                             $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
                 }
@@ -120,24 +155,53 @@ namespace ScpAgent.Bot
 
                 // 7. Suscribir eventos de recompensa
                 
-                Strategy.addBoundsToCache(ExiledPlayer);
+                addBoundsToCache(ExiledPlayer);
 
                 // 8. Notificar al AgentManager — activa el slot y vincula sensores
                 // AgentSensors.VincularPlayer() se llama desde AgentSlot.OnSpawnComplete()
                 AgentManager.Instance?.OnBotSpawnComplete(AgentId, ExiledPlayer);
+                
             });
+        }
+        public void SetStrategy(IAgentRoleStrategyBase strategy)
+        {   
+            _strategy?.OnUnbind();
+            _strategy = strategy;
+            _strategy.OnBind(_ctx);
+            if (_strategy is IAgentRoleStrategyHuman humanStrategy)
+            {
+                _sensores?.VincularEstrategia(
+                tipo => humanStrategy.CalcularPrioridadItem(tipo),
+                tipo => humanStrategy.CategorizarItem(tipo)
+                );
+            }
+            else
+            {
+                _sensores?.VincularEstrategia(
+                    tipo => 0f, 
+                    tipo => "Ninguno"
+                    // Alternativa: Si creaste un método específico para limpiar:
+                    // _sensores?.DesvincularEstrategia();
+                );
+                // La estrategia actual es un SCP u otro rol que no implementa la interfaz humana
+                // Aquí puedes ignorar el ítem o darle prioridad 0
+            }
+            // Pasar solo los delegados al sensor, no la estrategia completa
+            
         }
 
 
         public void SetPlayer(Player exiledPlayer)
         {
             ExiledPlayer = exiledPlayer;
+            _ctx.ActualizarPlayer(exiledPlayer);
         }
 
         public void SetSensores(ISensors sensores)
         {
             _sensores = sensores;
         }
+
         public ISensors GetSensors()
         {
             return _sensores;
@@ -193,13 +257,13 @@ namespace ScpAgent.Bot
 
             // 3. Desconectar de Mirror (tu FakeConnection tiene la lógica perfecta para esto)
             _fakeConn?.Disconnect();
-
+            _sensores.Destruir();
             // 4. Destruir el objeto físico en Unity
             if (_botGameObject != null)
             {
                 UnityEngine.Object.Destroy(_botGameObject);
             }
-
+            Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
             Log.Debug($"[ScpAgentBot] Agente {AgentId} destruido y memoria liberada.");
         }
 
@@ -381,7 +445,7 @@ namespace ScpAgent.Bot
                 // 5. Migrar cache de sala si el ID cambió
                 int idNuevo = freshPlayer.Id;
                 if (idAntiguo != idNuevo && idAntiguo >= 0)
-                Strategy.destroyBoundsCache(idAntiguo, idNuevo);
+                destroyBoundsCache(idAntiguo, idNuevo);
 
                 ExiledPlayer = freshPlayer;
 
@@ -454,9 +518,9 @@ namespace ScpAgent.Bot
                 if (freshPlayer != null)
                 {
                     int idNuevo = freshPlayer.Id;
-                    Strategy.destroyBoundsCache(idAntiguo, idNuevo);
-                    ExiledPlayer = freshPlayer;
-                    Strategy.addBoundsToCache(ExiledPlayer);
+                    destroyBoundsCache(idAntiguo, idNuevo);
+                    SetPlayer(freshPlayer);
+                    addBoundsToCache(ExiledPlayer);
                     _InicializarMouseLook();
                     AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
                     Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado en nueva ronda. " +
@@ -674,17 +738,59 @@ namespace ScpAgent.Bot
             _ => _IsKeycard(type) ? 10f : 0f
         };
 
-        // ───────────────────────────────────────────────────────────────────────
-        // LOOKUP ESTÁTICO
-        // ───────────────────────────────────────────────────────────────────────
+        public void OnRoomChanged(RoomChangedEventArgs ev)
+        {
+            if (!_EsEsteAgente(ev.Player)) return;
+            if (ev.NewRoom == null || ev.NewRoom.Type == RoomType.Unknown) return;
+            
+            try
+            {
+                addBoundsToCache(ev.Player);
+                //_sensores?.MarcarRoomDescubierta(ev.NewRoom);
+                _strategy?.OnRoomChanged(ev.OldRoom, ev.NewRoom);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[ScpAgentBot] OnRoomChanged Agente {AgentId}: {ex.Message}");
+            }
+        }
 
-        //public static bool TryGetAgent(int playerId, out ScpAgentBot agent)
-            //=> AllAgents.TryGetValue(playerId, out agent);
 
-        //public AgentSensors GetSensores()
-        //{
-            //return _sensores;
-        //}
+        public void addBoundsToCache(Player player)
+        {
+            Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
+            int pid = player.Id;
+            
+            if (!BaseSensors.agentCacheData.ContainsKey(pid))
+                BaseSensors.agentCacheData[pid] = new AgentCacheData();
+
+            BaseSensors.agentCacheData[pid].center = b.center;
+            BaseSensors.agentCacheData[pid].halfX = b.size.x / 2f;
+            BaseSensors.agentCacheData[pid].halfY = b.size.y / 2f;
+            BaseSensors.agentCacheData[pid].halfZ = b.size.z / 2f;
+            BaseSensors.agentCacheData[pid].IsDataReady   = true;   
+
+            _sensores?.MarcarRoomDescubierta(player.CurrentRoom);        
+        }
+
+        public void destroyBoundsCache(int idAntiguo, int idNuevo)
+        {
+            if (idAntiguo != idNuevo && idAntiguo >= 0)
+            {
+                if (BaseSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
+                {
+                    BaseSensors.agentCacheData[idNuevo] = datos;
+                    BaseSensors.agentCacheData.Remove(idAntiguo);
+                    Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
+                }
+            }
+        }     
+
+        private  bool _EsEsteAgente(Player player)
+        {
+            return ExiledPlayer == player;
+        }
+
     }
 
 

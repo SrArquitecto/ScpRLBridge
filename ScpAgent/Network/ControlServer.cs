@@ -17,6 +17,7 @@ using UnityEngine;
 using ScpAgent.Bot.Sensors;
 using ScpAgent.Network.Event;
 using PlayerRoles;
+using ScpAgent.Bot.Sensors.Data;
 
 namespace ScpAgent.Network
 {

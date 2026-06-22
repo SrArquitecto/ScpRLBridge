@@ -1,9 +1,12 @@
+using System;
 using ScpAgent.Bot.Data;
 using Exiled.API.Features;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Intefaces;
 using UnityEngine.PlayerLoop;
 using Exiled.API.Features.Components;
+using ScpAgent.Bot.Sensors.Data;
+using ScpAgent.Bot.Strategies.Interfaces;
 
 namespace ScpAgent.Bot.Interfaces 
 {
@@ -24,12 +27,14 @@ namespace ScpAgent.Bot.Interfaces
         public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD);     
         void SetPlayer(Player exiledPlayer);
         void SetSensores(ISensors sensores);
+        void SetStrategy(IAgentRoleStrategyBase strategy);
         ISensors GetSensors();
         void ResetearPosicionInicial(UnityEngine.Vector3 posicionspawn);
         void ResetEstado();
         AgentObservation GetObservation(float deltaTime);
-        
-        //AgentSensors GetSensores();
         void Destruir();
-    }
+        void addBoundsToCache(Player player);
+        void destroyBoundsCache(int idAntiguo, int idNuevo);
+    }    
+    
 }

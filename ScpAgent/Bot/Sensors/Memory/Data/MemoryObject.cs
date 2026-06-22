@@ -38,6 +38,15 @@ namespace ScpAgent.Bot.Sensors.Memory.Data
         public int Tier;
 
     }
+
+    public class ObjectMemoryItem : ObjectMemory
+    {
+        // Snapshot del estado relevante en el momento de verlo (ej. IsOpen de una puerta)
+        // Se actualiza solo cuando se ve directamente — al recordar, se usa el último conocido.
+        public ItemType Tipo;
+        public int Tier;
+
+    }
         public class ObjectMemoryLocker : ObjectMemory
     {
         // Snapshot del estado relevante en el momento de verlo (ej. IsOpen de una puerta)

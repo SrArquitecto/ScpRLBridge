@@ -1,91 +1,49 @@
-using System;
 using Exiled.API.Features;
-using Exiled.API.Enums;
-using Exiled.Events.EventArgs.Player;
 using PlayerRoles;
-using UnityEngine;
-using ScpAgent.Bot.Strategies.Interfaces;
-using ScpAgent.Bot.Interfaces;
-using ScpAgent.Bot.Sensors;
-using ScpAgent.Bot.Data;
 
+using System.Collections.Generic;
 namespace ScpAgent.Bot.Strategies
 {
-    public abstract class BaseStrategy : IAgentRoleStrategy
+    public abstract class BaseStrategy 
     {
+        protected readonly HashSet<int> _salasVisitadas = new HashSet<int>();
         public RoleTypeId Role { get; }
-
-        protected IAgentController _bot;
+        protected AgentContext _ctx;
 
         public BaseStrategy(RoleTypeId role) 
         {
             Role = role;
         }
 
-    
-        public virtual void OnBind(IAgentController bot)
+        public virtual void OnBind(AgentContext ctx)
         {
-            _bot = bot;
-            Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
+            _ctx = ctx;
         }
 
         public virtual void OnUnbind()
         {
-            _bot = null;
-            Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
+            
+            _ctx = null;
         }
 
         public virtual void EjecutarAccionEspecial(int actionId, float deltaTime) {}
 
-        protected bool _EsEsteAgente(Player p)
-        {
-            if (p == null || _bot.ExiledPlayer == null) return false;
-            return p.Id == _bot.ExiledPlayer.Id;
-        }
+        protected bool _EsEsteAgente(Player p) 
+            => _ctx?.Player != null && p?.Id == _ctx.Player.Id;
         // ── MANEJADORES DE EVENTOS DE RECOMPENSA ──
 
-        public void OnRoomChanged(RoomChangedEventArgs ev)
+        public void OnRoomChanged(Room roomAnterior, Room roomNueva)
         {
-            if (!_EsEsteAgente(ev.Player)) return;
-            if (ev.NewRoom == null || ev.NewRoom.Type == RoomType.Unknown) return;
-            
-            try
+            if (_ctx == null) return;
+
+            // Recompensa por explorar una sala nueva (solo la primera vez)
+            if (!_salasVisitadas.Contains(roomNueva.GameObject.GetInstanceID()))
             {
-                addBoundsToCache(ev.Player);
-                _bot.GetSensors()?.MarcarRoomDescubierta(ev.NewRoom);
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"[ScpAgentBot] OnRoomChanged Agente {_bot.AgentId}: {ex.Message}");
+                _salasVisitadas.Add(roomNueva.GameObject.GetInstanceID());
+                _ctx.AddReward(10f);
             }
         }
 
-        public virtual void addBoundsToCache(Player player)
-        {
-            Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
-            int pid = player.Id;
-
-            if (!BaseSensors.agentCacheData.ContainsKey(pid))
-                BaseSensors.agentCacheData[pid] = new AgentCacheData();
-
-            BaseSensors.agentCacheData[pid].center = b.center;
-            BaseSensors.agentCacheData[pid].halfX = b.size.x / 2f;
-            BaseSensors.agentCacheData[pid].halfY = b.size.y / 2f;
-            BaseSensors.agentCacheData[pid].halfZ = b.size.z / 2f;
-            BaseSensors.agentCacheData[pid].IsDataReady   = true;           
-        }
-
-        public virtual void destroyBoundsCache(int idAntiguo, int idNuevo)
-        {
-            if (idAntiguo != idNuevo && idAntiguo >= 0)
-            {
-                if (BaseSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
-                {
-                    BaseSensors.agentCacheData[idNuevo] = datos;
-                    BaseSensors.agentCacheData.Remove(idAntiguo);
-                    Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
-                }
-            }
-        }        
+        
     }
 }

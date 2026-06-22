@@ -6,28 +6,22 @@ using PlayerRoles;
 using UnityEngine;
 using ScpAgent.Bot.Strategies;
 using ScpAgent.Bot.Interfaces;
+using ScpAgent.Bot.Strategies.Interfaces;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace ScpAgent.Bot.Strategies.Human
 {
-    public abstract class HumanStrategy : BaseStrategy
+    public abstract class HumanStrategy : BaseStrategy, IAgentRoleStrategyHuman
     {
         public HumanStrategy(RoleTypeId role) : base(role)
         {
         }
 
-        public override void addBoundsToCache(Player player)
-        {
-            base.addBoundsToCache(player);
-        }
+        public abstract float CalcularPrioridadItem(ItemType tipo);
 
-        public override void destroyBoundsCache(int idAntiguo, int idNuevo)
+        public override void OnBind(AgentContext ctx)
         {
-            base.destroyBoundsCache(idAntiguo, idNuevo);
-        }
-
-        public override void OnBind(IAgentController bot)
-        {
-            base.OnBind(bot);
+            base.OnBind(ctx);
 
             // ── SUSCRIPCIÓN DE EVENTOS (Lógica de Recompensas) ──
             Exiled.Events.Handlers.Player.Escaping            += OnEscaping;
@@ -47,6 +41,7 @@ namespace ScpAgent.Bot.Strategies.Human
 
         public override void OnUnbind()
         {
+            base.OnUnbind();
             // ── LIMPIEZA OBLIGATORIA (Evita los eventos zombies que bajan los it/s) ──
             Exiled.Events.Handlers.Player.Escaping            -= OnEscaping;
             
@@ -59,8 +54,6 @@ namespace ScpAgent.Bot.Strategies.Human
             Exiled.Events.Handlers.Player.InteractingElevator -= OnInteractElevator;
             
             Exiled.Events.Handlers.Player.InteractingLocker   -= OnInteractingLocker;
-
-            _bot = null;
             
         }
 
@@ -80,21 +73,37 @@ namespace ScpAgent.Bot.Strategies.Human
                     break;
             }
         }
+        public string CategorizarItem(ItemType tipo)
+        {
+            string s = tipo.ToString();
+            if (s.StartsWith("Gun"))              return "Weapon";
+            if (s.StartsWith("Ammo"))             return "Ammo";
+            if (s.StartsWith("Armor"))            return "Armor";
+            if (s.Contains("Keycard"))            return "Keycard";
+            if (s == "Medkit" || s == "Painkillers" || s == "Adrenaline") return "Medical";
+            if (s.StartsWith("Grenade") || s == "SCP018") return "Tactical";
+            return "Other";
+        }
+
 
         protected void OnEscaping(EscapingEventArgs ev)
         {
             if (!_EsEsteAgente(ev.Player)) return;
-            _bot.PendingReward += 200f;
-            _bot.EpisodioTerminado = true;
-            Log.Debug($"[ScpAgentBot] Agente {_bot.AgentId} escapó. +200 — episodio terminado.");
+            
+            _ctx.AddReward(200f);
+            _ctx.EndEpisode();
+            
+            Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} escapó. +200 — episodio terminado.");
         }
 
         protected void OnDying(DyingEventArgs ev)
         {
             if (!_EsEsteAgente(ev.Player)) return;
-            _bot.PendingReward -= 100f;
-            _bot.EpisodioTerminado = true;
-            Log.Debug($"[ScpAgentBot] Agente {_bot.AgentId} murió. -100 — episodio terminado.");
+            
+            _ctx.AddReward(-100f);
+            _ctx.EndEpisode();
+           
+            Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} murió. -100 — episodio terminado.");
         }
 
         protected void OnPickup(PickingUpItemEventArgs ev)
@@ -103,8 +112,8 @@ namespace ScpAgent.Bot.Strategies.Human
             float bonus = GetKeycardBonus(ev.Pickup.Type);
             if (bonus > 0)
             {
-                _bot.PendingReward += bonus;
-                Log.Debug($"[ScpAgentBot] Agente {_bot.AgentId} recogió {ev.Pickup.Type}. +{bonus}");
+                _ctx.AddReward(bonus);
+                Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} recogió {ev.Pickup.Type}. +{bonus}");
             }
         }
 
@@ -112,21 +121,22 @@ namespace ScpAgent.Bot.Strategies.Human
         {
             if (!_EsEsteAgente(ev.Player)) return;
             float r = ev.IsAllowed ? 3f : -4f;
-            _bot.PendingReward += r;
+            _ctx.AddReward(r);
         }
 
         protected void OnInteractingLocker(InteractingLockerEventArgs ev)
         {
             if (!_EsEsteAgente(ev.Player)) return;
-            _bot.PendingReward += 8f;
-            Log.Debug($"[ScpAgentBot] Agente {_bot.AgentId} abrió locker. +8");
+            _ctx.AddReward(8f);
+
+            Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} abrió locker. +8");
         }
 
         protected void OnInteractElevator(InteractingElevatorEventArgs ev)
         {
             if (!_EsEsteAgente(ev.Player)) return;
-            _bot.PendingReward += 15f;
-            Log.Debug($"[ScpAgentBot] Agente {_bot.AgentId} usó ascensor. +15");
+            _ctx.AddReward(15f);
+            Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} usó ascensor. +15");
         }
 
 

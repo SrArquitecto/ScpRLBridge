@@ -226,9 +226,9 @@ namespace ScpAgent.Managers
         // ───────────────────────────────────────────────────────────────────────
         // CREACIÓN INTERNA (privada, solo en Inicializar)
         // ───────────────────────────────────────────────────────────────────────
-        private IAgentRoleStrategy SetStrategy(RoleTypeId rol)
+        private IAgentRoleStrategyBase SetStrategy(RoleTypeId rol)
         {
-            IAgentRoleStrategy strategy;
+            IAgentRoleStrategyBase strategy;
             if (rol == RoleTypeId.ClassD || rol == RoleTypeId.Scientist)
             {
                 

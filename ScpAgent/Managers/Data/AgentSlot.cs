@@ -18,7 +18,7 @@ namespace ScpAgent.Managers.Data
         public  int              AgentId;
         public  IAgentController Bot;
         public RoleTypeId Rol;
-        public IAgentRoleStrategy Strategy;
+        public IAgentRoleStrategyBase Strategy;
         public ISensors     Sensors;
         public  FakeConnection   FakeConnection;
 
@@ -49,8 +49,8 @@ namespace ScpAgent.Managers.Data
             SeleccionarRol(id, rol);
             string nickname = $"IA_Agent_{id}";
             FakeConnection = null;
-            Bot = new ScpAgentBot(nickname, id, Strategy, Rol);
-            Strategy.OnBind(Bot);
+            Bot = new ScpAgentBot(nickname, id, Rol);
+            Bot.SetStrategy(Strategy);
             IsReady = false;
         }
         /// <summary>
@@ -115,7 +115,7 @@ namespace ScpAgent.Managers.Data
                 Sensors = new HumanSensors(agentId);
             }
         }
-        public void ConfigurarRol(IAgentRoleStrategy nuevaEstrategia, ISensors nuevosSensores)
+        public void ConfigurarRol(IAgentRoleStrategyBase nuevaEstrategia, ISensors nuevosSensores)
         {
             // Desvinculamos la estrategia anterior si existía una
             Strategy?.OnUnbind();
@@ -131,5 +131,6 @@ namespace ScpAgent.Managers.Data
                 //scpBot.SetSensores(nuevosSensores);
             //}
         }
+        
     }
 }

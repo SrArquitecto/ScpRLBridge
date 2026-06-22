@@ -10,6 +10,7 @@ using ScpAgent.Bot;
 using Exiled.API.Features.Lockers;
 using Exiled.API.Enums;
 using RemoteAdmin.Communication;
+using ScpAgent.Bot.Sensors.Data;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Memory;
 using ScpAgent.Bot.Sensors.Memory.Data;
@@ -24,24 +25,26 @@ namespace ScpAgent.Bot.Sensors
         // ── Caché del raycast de apuntado ───────────────────────────────────────
 
 // Cachés para el procesamiento de Lockers
-        private readonly List<(Locker Locker, float DistMetros)> _lockersVisiblesConDist = new List<(Locker, float)>(16);
-        private readonly List<(ObjectMemoryLocker Memoria, float DistMetros)> _lockersRecordadosConDist = new List<(ObjectMemoryLocker, float)>(16);
+        private readonly List<(Locker Locker, float DistMetros)> _lockersVisiblesConDist = new List<(Locker, float)>(5);
+        private readonly List<(ObjectMemoryLocker Memoria, float DistMetros)> _lockersRecordadosConDist = new List<(ObjectMemoryLocker, float)>(5);
 
         private List<KeycardData> _cachedNearKeycards { get; set; } = new List<KeycardData>();
+        private List<LockerData> _cachedNearLockers { get; set; } = new List<LockerData>();
+        private List<ItemData> _cachedNearItems { get; set;} = new List<ItemData>();
         //private List<Pickup> _keycardsVisiblesConDist = new List<Pickup>();
 
 // Cachés para el procesamiento de Keycards (Colócalas junto a _liftsConDist)
-        private readonly List<(Pickup Pickup, float DistMetros, int Tier)> _keycardsVisiblesConDist = new List<(Pickup, float, int)>(16);
-        private readonly List<(ObjectMemoryKeycard Memoria, float DistMetros, int Tier)> _keycardsRecordadasConDist = new List<(ObjectMemoryKeycard, float, int)>(16);
-
+        private readonly List<(Pickup Pickup, float DistMetros, int Tier)> _keycardsVisiblesConDist = new List<(Pickup, float, int)>();
+        private readonly List<(ObjectMemoryKeycard Memoria, float DistMetros, int Tier)> _keycardsRecordadasConDist = new List<(ObjectMemoryKeycard, float, int)>();
+        
         private List<Locker> _cachedLockers;
-
-        private List<LockerData> _cachedNearLockers { get; set; } = new List<LockerData>();
+        private List<Pickup> _cachedItems;
+        
         
 
 
         private readonly KeycardData[]  _keycardPool = new KeycardData[5];
-
+        private readonly ItemData[] _itemPool = new ItemData[10];
         private readonly LockerData[]   _lockerPool  = new LockerData[5];
 
 
@@ -51,11 +54,12 @@ namespace ScpAgent.Bot.Sensors
 
         private readonly VisualMemory<ObjectMemoryKeycard> _memoriaKeycards = new VisualMemory<ObjectMemoryKeycard>(TIEMPO_OLVIDO_OBJETOS);
         private readonly VisualMemory<ObjectMemoryLocker> _memoriaLockers  = new VisualMemory<ObjectMemoryLocker>(TIEMPO_OLVIDO_OBJETOS);
+        private readonly VisualMemory<ObjectMemoryKeycard> _memoriaItems = new VisualMemory<ObjectMemoryKeycard>(TIEMPO_OLVIDO_OBJETOS);
 
         // ── Cache de collider name por puerta (evita GetComponentsInChildren) ──
         // Se llena la primera vez que se procesa cada puerta y se reutiliza
 
-        
+        //refencias a las funciones de las estrategias:
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -69,7 +73,15 @@ namespace ScpAgent.Bot.Sensors
             base.Init();
             for (int i = 0; i < _keycardPool.Length; i++) _keycardPool[i] = new KeycardData();
             for (int i = 0; i < _lockerPool.Length;  i++) _lockerPool[i]  = new LockerData();
+            for (int i = 0; i < _itemPool.Length;  i++) _itemPool[i]  = new ItemData();
         }
+
+        public void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
+        {
+            _fnPrioridad = fnPrioridad;
+            _fnCategoria = fnCategoria;
+        }
+
 
         // ───────────────────────────────────────────────────────────────────────
         // MÉTODO PRINCIPAL
@@ -149,9 +161,7 @@ namespace ScpAgent.Bot.Sensors
         
             float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
             //Log.Info($"Elapsed: {elapsed}");
-            if (elapsed > 2f)
-                Log.Debug($"[Perf] _CargarElementosCercanos tardó {elapsed:F1}ms " +
-                        $"(Habitaciones={_cachedNearRooms?.Count} keys={_cachedKeys?.Count})");
+            
         
             _CopiarACache(obs);
         }
@@ -411,6 +421,107 @@ namespace ScpAgent.Bot.Sensors
             _memoriaLockers.PurgarOlvidados(ahora);
         }
 
+        private void _CargarItems(AgentObservation obs, Vector3 pos, float halfX, float halfY, float halfZ)
+        {
+            if (_cachedItems == null)
+                _cachedItems = new List<Pickup>(Pickup.List);
+            else
+            {
+                _cachedItems.Clear();
+                _cachedItems.AddRange(Pickup.List);
+            }
+        
+            Vector3 miMirada = _player.CameraTransform != null ? _player.CameraTransform.forward : _player.Transform.forward;
+            Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
+            float   ahora    = Time.time;
+        
+            _memoriaItems.MarcarTodosNoVistos();
+
+            // ── 1. Filtrar por rango + visibilidad real ───────────────────────────
+            var itemsConDist = new List<(Pickup p, float dist)>(20); // considera cachear esto como campo si se llama a menudo
+            foreach (var pk in _cachedItems)
+            {
+                if (pk == null || !pk.IsSpawned || pk.Transform == null) continue;
+        
+                float dist = Vector3.Distance(pk.Transform.position, pos);
+                if (dist >= 25f) continue;
+        
+                if (!_EsVisible(misOjos, miMirada, pk.Position, dist, pk.GameObject)) continue;
+        
+                int itemId = pk.GameObject.GetInstanceID();
+                var mem = _memoriaItems.ObtenerORegistrar(itemId, pk.Position, ahora, pk);
+                mem.Tipo = pk.Type;
+                mem.Tier = GetKeycardTier(pk.Type);
+
+                itemsConDist.Add((pk, dist));
+            }
+        
+            // Ordenar por prioridad del rol activo, no solo por distancia
+            itemsConDist.Sort((a, b) =>
+            {
+                float prioA = _fnPrioridad?.Invoke(a.p.Type) ?? 10f;
+                float prioB = _fnPrioridad?.Invoke(b.p.Type) ?? 10f;
+                // Prioridad descendente; a igual prioridad, más cercano primero
+                int cmp = prioB.CompareTo(prioA);
+                return cmp != 0 ? cmp : a.dist.CompareTo(b.dist);
+            });
+        
+            // ── 2. Volcar items VISTOS AHORA al pool ──────────────────────────────
+            int itemCount = 0;
+            foreach (var (pk, dist) in itemsConDist)
+            {
+                if (itemCount >= 10) break;
+        
+                var id = _itemPool[itemCount];
+                id.Type      = pk.Type.ToString();
+                id.Category  = _fnCategoria?.Invoke(pk.Type) ?? "Other";
+                id.Prioridad = _fnPrioridad?.Invoke(pk.Type) ?? 10f;
+                id.Distance  = dist / 25f;
+                id.RelX      = (pk.Position.x - pos.x) / 25f;
+                id.RelY      = (pk.Position.y - pos.y) / 25f;
+                id.RelZ      = (pk.Position.z - pos.z) / 25f;
+                id.RealRelX  = pk.Position.x - pos.x;
+                id.RealRelY  = pk.Position.y - pos.y;
+                id.RealRelZ  = pk.Position.z - pos.z;
+                id.EsRecordado = false;
+                id.Antiguedad   = 0f;
+                _cachedNearItems.Add(id);
+                itemCount++;
+            }
+        
+            // ── 3. Volcar items RECORDADOS ─────────────────────────────────────────
+            foreach (var kv in _memoriaItems.Entradas)
+            {
+                if (itemCount >= 10) break;
+                if (kv.Value.VistoEsteCiclo) continue;
+        
+                var mem = kv.Value;
+                float dist = Vector3.Distance(mem.UltimaPosicion, pos);
+                if (dist >= 25f * 1.2f) continue;
+        
+                var tipoRecordado = mem.Tipo;
+        
+                var id = _itemPool[itemCount];
+                id.Type      = tipoRecordado.ToString();
+                id.Tier = GetKeycardTier(tipoRecordado);
+                id.Category  = _fnCategoria?.Invoke(tipoRecordado) ?? "Other";
+                id.Prioridad = _fnPrioridad?.Invoke(tipoRecordado) ?? 10f;
+                id.Distance  = dist / 25f;
+                id.RelX      = (mem.UltimaPosicion.x - pos.x) / 25f;
+                id.RelY      = (mem.UltimaPosicion.y - pos.y) / 25f;
+                id.RelZ      = (mem.UltimaPosicion.z - pos.z) / 25f;
+                id.RealRelX  = mem.UltimaPosicion.x - pos.x;
+                id.RealRelY  = mem.UltimaPosicion.y - pos.y;
+                id.RealRelZ  = mem.UltimaPosicion.z - pos.z;
+                id.EsRecordado = true;
+                id.Antiguedad   = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO_OBJETOS;
+                _cachedNearItems.Add(id);
+                itemCount++;
+            }
+        
+            _memoriaItems.PurgarOlvidados(ahora);
+        }
+
         // ───────────────────────────────────────────────────────────────────────
         // AIM RAYCAST
         // ───────────────────────────────────────────────────────────────────────
@@ -480,12 +591,31 @@ namespace ScpAgent.Bot.Sensors
                     case ItemType.KeycardO5:                  t = 9; break;
                     default:
                         if (IsKeycardTypeName(item.Type.ToString())) t = 1;
+                        else t = 0;
                         break;
                 }
                 if (t > tier) tier = t;
             }
             return tier;
         }     // implementa tu lógica
+        public static int GetKeycardTier(ItemType tipo)
+        {
+            switch (tipo)
+            {
+                case ItemType.KeycardJanitor:             return 1;
+                case ItemType.KeycardScientist:
+                case ItemType.KeycardResearchCoordinator:
+                case ItemType.KeycardChaosInsurgency:     return 2;
+                case ItemType.KeycardGuard:
+                case ItemType.KeycardMTFPrivate:          return 3;
+                case ItemType.KeycardZoneManager:
+                case ItemType.KeycardMTFOperative:
+                case ItemType.KeycardFacilityManager:     return 4;
+                case ItemType.KeycardMTFCaptain:
+                case ItemType.KeycardO5:                  return 5;
+                default:                                   return 0; // no es keycard
+            }
+        }
         private int GetBestKeycardTier(ItemType p)
         {
             int t = 0;
@@ -507,7 +637,19 @@ namespace ScpAgent.Bot.Sensors
             }
                 
             return t;
-        }     // implementa tu lógica
+        } 
+        public string CategorizarItem(ItemType tipo)
+        {
+            string s = tipo.ToString();
+            if (s.StartsWith("Gun"))              return "Weapon";
+            if (s.StartsWith("Ammo"))             return "Ammo";
+            if (s.StartsWith("Armor"))            return "Armor";
+            if (s.Contains("Keycard"))            return "Keycard";
+            if (s == "Medkit" || s == "Painkillers" || s == "Adrenaline") return "Medical";
+            if (s.StartsWith("Grenade") || s == "SCP018") return "Tactical";
+            return "Other";
+        }
+    // implementa tu lógica
 
         private bool IsKeycardTypeName(string itemTypeName) => itemTypeName?.IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
    // implementa tu lógica

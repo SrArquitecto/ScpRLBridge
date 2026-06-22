@@ -7,8 +7,8 @@ using Exiled.API.Features.Doors;
 using ScpAgent.Bot.Sensors.Intefaces;
 using PlayerRoles;
 using Exiled.API.Enums;
-using System.Linq;
 using ScpAgent.Bot.Sensors.Memory;
+using ScpAgent.Bot.Sensors.Data;
 using ScpAgent.Bot.Sensors.Memory.Data;
 
 
@@ -39,10 +39,10 @@ namespace ScpAgent.Bot.Sensors
         protected string _cachedHitName    = "None";
         protected float  _cachedHitX, _cachedHitY, _cachedHitZ;
         protected float  _cachedForwardX,  _cachedForwardZ;
-        public List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();
-        public List<LiftData> _cachedNearLifts { get; set; } = new List<LiftData>();
-        public List<RoomData> _cachedNearRooms { get; set; } = new List<RoomData>();
-
+        private List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();
+        private List<LiftData> _cachedNearLifts { get; set; } = new List<LiftData>();
+        private List<RoomData> _cachedNearRooms { get; set; } = new List<RoomData>();
+        
         public List<ActorData> _cachedNearPlayers { get; set;} = new List<ActorData>();
         public List<Actor> _listaTemporalPlayers { get; set;} = new List<Actor>();
      
@@ -74,7 +74,7 @@ namespace ScpAgent.Bot.Sensors
         protected readonly ActorData[]   _playerPool   = new ActorData[5];
         private readonly HashSet<int> _roomsDescubiertas = new HashSet<int>();
         protected static readonly Comparison<Habitaciones> _roomComparison = 
-    (a, b) => b.Prioridad.CompareTo(a.Prioridad) == 0 ? a.Distancia.CompareTo(b.Distancia) : b.Prioridad.CompareTo(a.Prioridad);
+            (a, b) => b.Prioridad.CompareTo(a.Prioridad) == 0 ? a.Distancia.CompareTo(b.Distancia) : b.Prioridad.CompareTo(a.Prioridad);
 
 
         // ── Listas globales cacheadas (se cargan UNA VEZ por ronda) ───────────
@@ -104,6 +104,9 @@ namespace ScpAgent.Bot.Sensors
         protected static readonly Comparison<(Lift d, float dist)> _liftComparison =
             (a, b) => a.dist.CompareTo(b.dist);
         
+        //ESTRATEGIAS:
+        protected Func<ItemType, float> _fnPrioridad;
+        protected Func<ItemType, string> _fnCategoria;
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -140,6 +143,12 @@ namespace ScpAgent.Bot.Sensors
             }
 
             Log.Debug($"[AgentSensors] Player vinculado: {freshPlayer?.Nickname}");
+        }
+
+        public void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
+        {
+            _fnPrioridad = fnPrioridad;
+            _fnCategoria = fnCategoria;
         }
 
         /// <summary>
@@ -375,7 +384,7 @@ namespace ScpAgent.Bot.Sensors
 
                 var mem = kv.Value;
                 float dist = Vector3.Distance(mem.UltimaPosicion, pos);
-                if (dist >= 60f) continue; // ya muy lejos, no relevante
+                if (dist >= 50f * 1.2f) continue; // ya muy lejos, no relevante
 
 
                 var l = _liftPool[liftCount];
@@ -800,7 +809,7 @@ namespace ScpAgent.Bot.Sensors
                 var role   = target.Role.Type;
 
                 pd.Role      = role.ToString();
-                pd.FactionId = (int)role;
+                pd.FactionId = (float)role / 8f;
                 pd.EsRecordado = item.EsRecordado;          // ← nuevo campo
                 pd.Antiguedad  = item.EsRecordado ? item.Antiguedad / TIEMPO_OLVIDO : 0f; // normalizado 0-1
 
