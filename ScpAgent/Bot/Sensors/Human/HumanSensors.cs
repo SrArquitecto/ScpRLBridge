@@ -596,15 +596,15 @@ namespace ScpAgent.Bot.Sensors
  
             // ── Listas de entorno cercano ────────────────────────────────────
             
-            _cachedNearKeycards.Clear();
-            _memoriaKeycards.Clear();
+            _cachedNearItems.Clear();
+            _memoriaItems.Clear();
             _cachedNearLockers.Clear();
             _memoriaLockers.Clear();
 
 
 
             // ── Caches de mapa (se recargan en el primer tick de la nueva ronda)
-            _cachedKeys   = null;
+            _cachedItems   = null;
             
             _cachedLockers = null;
             
@@ -615,7 +615,7 @@ namespace ScpAgent.Bot.Sensors
             Log.Debug($"[AgentSensors] Sensores reseteados para nueva ronda.");
         }
 
-        public void Destruir()
+        public override void Destruir()
         {
             _player = null;
             ResetEstado();    

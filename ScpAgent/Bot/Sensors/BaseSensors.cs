@@ -183,7 +183,7 @@ namespace ScpAgent.Bot.Sensors
             AgentCacheData data = GetData();
             Vector3 relativePos = pos - data.center;
             var faction = _player.Role.Team;
-
+            
             if (data.halfX > 0) relX = Mathf.Clamp(relativePos.x / data.halfX, -1f, 1f);
             if (data.halfY > 0) relY = Mathf.Clamp(relativePos.y / data.halfY, -1f, 1f);
             if (data.halfZ > 0) relZ = Mathf.Clamp(relativePos.z / data.halfZ, -1f, 1f);
@@ -945,12 +945,12 @@ namespace ScpAgent.Bot.Sensors
         }
         
 
-        public void Destruir()
-        {
-            _player = null;
-            ResetEstado();    
+        public abstract void Destruir();
+        //{
+            //_player = null;
+            //ResetEstado();    
         
-        }
+        //}
 
         private void ObtenerListaSalasPriorizadas(int tierTarjeta)
         {
