@@ -31,17 +31,17 @@ namespace ScpAgent.Bot.Strategies.Human
                 // Armas — útiles pero secundarias para un superviviente puro
                 case ItemType type when type.ToString().StartsWith("Gun"):
                     return 45f;
-    
-                case ItemType type when type.ToString().StartsWith("Ammo"):
-                    return 30f;
-    
-                case ItemType.Radio:
-                case ItemType.Flashlight:
-                    return 35f; // utilidad para explorar zonas oscuras
-    
+
                 case ItemType.ArmorLight:
                 case ItemType.ArmorCombat:
-                    return 25f;
+                    return 40f;
+
+                case ItemType type when type.ToString().StartsWith("Ammo"):
+                    return 35f;
+
+                case ItemType.Radio:
+                case ItemType.Flashlight:
+                    return 10f; // utilidad para explorar zonas oscuras
     
                 default:
                     return 5f;
