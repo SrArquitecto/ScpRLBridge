@@ -67,7 +67,7 @@ public static class JsonUtils
         });
         
         // Datos de Aim y Hit
-        sb.Append("\"AimTarget\":"); AppendFloat(sb, obs.AimTarget, 2); sb.Append(",");
+        sb.Append(",\"AimTarget\":"); AppendFloat(sb, obs.AimTarget, 2); sb.Append(",");
         sb.Append("\"AimDistance\":"); AppendFloat(sb, obs.AimDistance, 3); sb.Append(",");
         sb.Append("\"AimRoom\":\"").Append(obs.AimRoom ?? "").Append("\",");
         sb.Append("\"AimDoorName\":\"").Append(obs.AimDoorName ?? "").Append("\",");

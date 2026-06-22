@@ -1,10 +1,10 @@
 using Exiled.API.Features;
 using PlayerRoles;
-
+using ScpAgent.Bot.Strategies.Interfaces;
 using System.Collections.Generic;
 namespace ScpAgent.Bot.Strategies
 {
-    public abstract class BaseStrategy 
+    public abstract class BaseStrategy : IAgentRoleStrategyBase
     {
         protected readonly HashSet<int> _salasVisitadas = new HashSet<int>();
         public RoleTypeId Role { get; }
@@ -44,6 +44,7 @@ namespace ScpAgent.Bot.Strategies
             }
         }
 
+        public abstract void OnDamageTaken(float amount, string type);
         
     }
 }

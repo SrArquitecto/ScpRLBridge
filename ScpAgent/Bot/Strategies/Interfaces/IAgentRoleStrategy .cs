@@ -13,11 +13,13 @@ namespace ScpAgent.Bot.Strategies.Interfaces
         void OnUnbind();
         void EjecutarAccionEspecial(int actionId, float deltaTime);
         public void OnRoomChanged(Room anterior, Room nueva);
+        void OnDamageTaken(float amount, string type);
     }
 
     public interface IAgentRoleStrategyHuman : IAgentRoleStrategyBase
     {
         float CalcularPrioridadItem(ItemType tipo);
         string CategorizarItem(ItemType tipo);
+        
     }
 }

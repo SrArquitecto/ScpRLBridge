@@ -802,9 +802,9 @@ namespace ScpAgent.Bot
         
             // ── Pasar al sensor ───────────────────────────────────────────────────
             _sensores?.RegistrarDaño(ev.Amount, tipoDaño, dirHaciaAtacante, atacanteEnMemoria);
-        
+            _strategy?.OnDamageTaken(ev.Amount, tipoDaño);
             // ── Dar recompensa negativa por daño recibido (a la estrategia) ───────
-            _ctx?.AddReward(-ev.Amount * 0.5f); // penalización proporcional al daño
+            //_ctx?.AddReward(-ev.Amount * 0.5f); // penalización proporcional al daño
         }
 
 

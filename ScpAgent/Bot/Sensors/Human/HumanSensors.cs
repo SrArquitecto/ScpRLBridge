@@ -119,9 +119,9 @@ namespace ScpAgent.Bot.Sensors
             _ProcesarAimRaycast(observation);
             _CargarInventario(observation);
 
-            bool canInteract = (observation.AimTarget == "Door" ||
-                                observation.AimTarget == "Locker" ||
-                                observation.AimTarget == "Pickup")
+            bool canInteract = (observation.AimTarget == AimTargetCode.Door ||
+                                observation.AimTarget == AimTargetCode.Locker ||
+                                observation.AimTarget == AimTargetCode.Pickup)
                                && observation.AimDistance <= 2.4f;
             observation.CanInteract = canInteract ? 1 : 0;
             //if (_player.Nickname == "IA_Agent_0")

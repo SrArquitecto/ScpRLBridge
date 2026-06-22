@@ -48,5 +48,11 @@ namespace ScpAgent.Bot.Strategies.Human
             }
         }
 
+        public override void OnDamageTaken(float amount, string type)
+        {
+            if (_ctx == null) return;
+            _ctx?.AddReward(-amount * 1.5f);
+        }
+
     }
 }

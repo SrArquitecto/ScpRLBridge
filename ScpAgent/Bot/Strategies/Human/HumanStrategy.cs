@@ -140,7 +140,6 @@ namespace ScpAgent.Bot.Strategies.Human
         }
 
 
-
         // Métodos auxiliares de ítems que se quedan en la estrategia humana
         protected bool _IsKeycard(ItemType t) => t.ToString().IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
 
