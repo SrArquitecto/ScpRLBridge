@@ -184,6 +184,7 @@ namespace ScpAgent.Bot.Sensors
         public virtual AgentObservation GetCurrentState(
             float fixedDelta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {
+
             Vector3 pos         = _player.Position;
             Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
             
@@ -230,8 +231,8 @@ namespace ScpAgent.Bot.Sensors
                 Health      = _player.Health / _player.MaxHealth,
                 Zone        = _player.CurrentRoom?.Zone.ToString() ?? "Unknown",
                 Room        = _player.CurrentRoom?.Type.ToString() ?? "Unknown",
-                HasKeycard  = false,
-                KeycardTier = 0,
+                HasKeycard  = true,
+                KeycardTier = 3,
                 LastAction  = accionAnterior,
                 Reward      = reward,
                 Done        = done
@@ -246,6 +247,13 @@ namespace ScpAgent.Bot.Sensors
             _CargarElementosBaseCercanos(observation, pos, data.halfX, data.halfY, data.halfZ, playerTier);
 
             _CargarPersonajesCercanos(observation, pos, 100);
+
+            bool canInteract = (observation.AimTarget == AimTargetCode.Door ||
+                                observation.AimTarget == AimTargetCode.Locker ||
+                                observation.AimTarget == AimTargetCode.Pickup)
+                               && observation.AimDistance <= 2.4f;
+            observation.CanInteract = canInteract ? 1 : 0;
+
             Log.Debug($"[Perf-HUMAN] Tras CargarElementosCercanos: obs.NearDoors={observation.NearDoors.Count}");
             return observation;
         }

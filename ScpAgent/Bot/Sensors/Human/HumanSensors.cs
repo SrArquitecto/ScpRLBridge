@@ -99,12 +99,12 @@ namespace ScpAgent.Bot.Sensors
             if (_player.CameraTransform == null) 
                 return obsVacia;
             bool hasKeycard  = false;
-            playerTier  = 3;
-            if (role == RoleTypeId.Scientist || role == RoleTypeId.ClassD)
-            {
-                 hasKeycard = _player.Items.Any(i => _IsKeycard(i.Type));
-                 playerTier = GetBestKeycardTier(_player);
-            }
+            playerTier  = 0;
+            
+            
+            hasKeycard = _player.Items.Any(i => _IsKeycard(i.Type));
+            playerTier = GetBestKeycardTier(_player);
+            
 
             AgentObservation observation = base.GetCurrentState(fixedDelta, accionAnterior, reward, done, role, playerTier);
 
@@ -119,11 +119,7 @@ namespace ScpAgent.Bot.Sensors
             _ProcesarAimRaycast(observation);
             _CargarInventario(observation);
 
-            bool canInteract = (observation.AimTarget == AimTargetCode.Door ||
-                                observation.AimTarget == AimTargetCode.Locker ||
-                                observation.AimTarget == AimTargetCode.Pickup)
-                               && observation.AimDistance <= 2.4f;
-            observation.CanInteract = canInteract ? 1 : 0;
+            
             //if (_player.Nickname == "IA_Agent_0")
                 //Log.Info($"PLAYER {_player.Nickname} ACTION: {accionAnterior} | POSICION: {pos} | AIMTARGET: {observation.AimTarget} | AIMDISTANCE: {observation.AimDistance} | VEL LINEAL: {vLin} | VEL LATERAL: {vLat} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
             return observation;
