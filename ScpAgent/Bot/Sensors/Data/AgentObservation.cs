@@ -60,7 +60,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public int TotalRooms => NearRooms.Count;
 
         // Datos del Raycast de apuntado (Aim)
-        public string AimTarget { get; set; }
+        public float AimTarget { get; set; }
         public string AimRoom { get; set; }
         public string HitName { get; set; }
         public string AimDoorName { get; set; }
@@ -70,6 +70,16 @@ namespace ScpAgent.Bot.Sensors.Data
         public float HitZ { get; set; }
         public float ForwardX { get; set; }
         public float ForwardZ { get; set; }
+
+        //"PELOS" PARA DETERMINAR SI COCHA CONTRA UN OBSTACULO
+        public float[] WhiskerDist { get; set; } = new float[8]; // distancia normalizada 0-1
+        public float[] WhiskerType { get; set; } = new float[8]; // tipo codificado
+
+        public float  DamageReceived  { get; set; }  // normalizado 0-1 (/ MaxHealth)
+        public string DamageType      { get; set; }  // "Firearm", "Explosion", "Scp", "Fall", "Unknown"
+        public float  DamageDirX      { get; set; }  // vector normalizado hacia el atacante (X)
+        public float  DamageDirZ      { get; set; }  // vector normalizado hacia el atacante (Z)
+        public bool   AttackerInMemory { get; set; } // si el atacante está en _memoriaJugadores
 
         // Estado del entrenamiento de RL
         public float Reward { get; set; }

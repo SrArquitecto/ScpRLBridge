@@ -67,7 +67,7 @@ public static class JsonUtils
         });
         
         // Datos de Aim y Hit
-        sb.Append(",\"AimTarget\":\"").Append(obs.AimTarget ?? "").Append("\",");
+        sb.Append("\"AimTarget\":"); AppendFloat(sb, obs.AimTarget, 2); sb.Append(",");
         sb.Append("\"AimDistance\":"); AppendFloat(sb, obs.AimDistance, 3); sb.Append(",");
         sb.Append("\"AimRoom\":\"").Append(obs.AimRoom ?? "").Append("\",");
         sb.Append("\"AimDoorName\":\"").Append(obs.AimDoorName ?? "").Append("\",");
@@ -77,6 +77,13 @@ public static class JsonUtils
         sb.Append("\"HitZ\":"); AppendFloat(sb, obs.HitZ, 3); sb.Append(",");
         sb.Append("\"ForwardX\":"); AppendFloat(sb, obs.ForwardX, 3); sb.Append(",");
         sb.Append("\"ForwardZ\":"); AppendFloat(sb, obs.ForwardZ, 3);
+
+        sb.Append(",\"DamageReceived\":"); AppendFloat(sb, obs.DamageReceived, 3);
+        sb.Append(",\"DamageType\":\"").Append(obs.DamageType ?? "None").Append("\"");
+        sb.Append(",\"DamageDirX\":"); AppendFloat(sb, obs.DamageDirX, 3);
+        sb.Append(",\"DamageDirZ\":"); AppendFloat(sb, obs.DamageDirZ, 3);
+        sb.Append(",\"AttackerInMemory\":").Append(obs.AttackerInMemory ? "true" : "false");
+
 
         // Entidades y Entorno Cercano con Persistencia de Memoria
         AppendList(sb, "NearPlayers", obs.NearPlayers, (builder, pd) => {
@@ -145,6 +152,20 @@ public static class JsonUtils
             builder.Append(",\"EsRecordado\":").Append(l.EsRecordado ? "true" : "false");
             builder.Append(",\"Antiguedad\":"); AppendFloat(builder, l.Antiguedad, 2);
         });
+
+        sb.Append(",\"WhiskerDist\":[");
+        for (int i = 0; i < 8; i++) {
+            AppendFloat(sb, obs.WhiskerDist?[i] ?? 1f, 2);
+            if (i < 7) sb.Append(",");
+        }
+        sb.Append("]");
+
+        sb.Append(",\"WhiskerType\":[");
+        for (int i = 0; i < 8; i++) {
+            AppendFloat(sb, obs.WhiskerType?[i] ?? 0f, 2);
+            if (i < 7) sb.Append(",");
+        }
+        sb.Append("]");
 
         // Filtrado de interacción exclusivo para roles humanos
         if (

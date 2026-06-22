@@ -103,6 +103,7 @@ namespace ScpAgent.Bot
             //_fakeConn = fakeConn; // ← recibida desde AgentManager, no creada aquí
             rol = role;
             Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
+            Exiled.Events.Handlers.Player.Hurting             += OnHurt;
             
             // 1. Clonar el prefab del jugador
         }
@@ -264,6 +265,7 @@ namespace ScpAgent.Bot
                 UnityEngine.Object.Destroy(_botGameObject);
             }
             Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
+            Exiled.Events.Handlers.Player.Hurting             -= OnHurt;
             Log.Debug($"[ScpAgentBot] Agente {AgentId} destruido y memoria liberada.");
         }
 
@@ -754,6 +756,57 @@ namespace ScpAgent.Bot
                 Log.Error($"[ScpAgentBot] OnRoomChanged Agente {AgentId}: {ex.Message}");
             }
         }
+
+        private void OnHurt(Exiled.Events.EventArgs.Player.HurtingEventArgs ev)
+        {
+            if (!_EsEsteAgente(ev.Player)) return;
+            if (ev.Amount <= 0f) return;
+        
+            // ── Tipo de daño ──────────────────────────────────────────────────────
+            string tipoDaño = "Unknown";
+            if (ev.DamageHandler != null)
+            {
+                string handlerName = ev.DamageHandler.GetType().Name;
+                
+                if (handlerName.Contains("Firearm") || handlerName.Contains("Bullet"))
+                    tipoDaño = "Firearm";
+                else if (handlerName.Contains("Explosion") || handlerName.Contains("Grenade"))
+                    tipoDaño = "Explosion";
+                else if (handlerName.Contains("Scp") || handlerName.Contains("Scpitem"))
+                    tipoDaño = "Scp";
+                else if (handlerName.Contains("Fall"))
+                    tipoDaño = "Fall";
+                else if (handlerName.Contains("Bleeding") || handlerName.Contains("Poison"))
+                    tipoDaño = "Status";
+                else
+                    tipoDaño = "Unknown";
+            }
+        
+            // ── Dirección hacia el atacante ───────────────────────────────────────
+            Vector3 dirHaciaAtacante = Vector3.zero;
+            bool atacanteEnMemoria   = false;
+        
+            if (ev.Attacker != null && ev.Attacker != ev.Player)
+            {
+                Vector3 vecHaciaAtacante = (ev.Attacker.Position - ev.Player.Position);
+                vecHaciaAtacante.y = 0f; // solo plano horizontal
+                if (vecHaciaAtacante.sqrMagnitude > 0.001f)
+                    dirHaciaAtacante = vecHaciaAtacante.normalized;
+        
+                // Comprobar si el atacante está en la memoria visual del sensor
+                // Necesitas acceso al sensor — opciones:
+                // A) Pasar la comprobación al sensor directamente
+                // B) Usar AgentContext para preguntar
+                atacanteEnMemoria = _sensores?.TieneEnMemoriaJugadores(ev.Attacker.Id) ?? false;
+            }
+        
+            // ── Pasar al sensor ───────────────────────────────────────────────────
+            _sensores?.RegistrarDaño(ev.Amount, tipoDaño, dirHaciaAtacante, atacanteEnMemoria);
+        
+            // ── Dar recompensa negativa por daño recibido (a la estrategia) ───────
+            _ctx?.AddReward(-ev.Amount * 0.5f); // penalización proporcional al daño
+        }
+
 
 
         public void addBoundsToCache(Player player)

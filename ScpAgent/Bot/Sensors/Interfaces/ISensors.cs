@@ -4,6 +4,7 @@ using Exiled.API.Features;
 using Exiled.API.Enums;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Data;
+using UnityEngine;
 
 namespace ScpAgent.Bot.Sensors.Intefaces
 {
@@ -17,5 +18,8 @@ namespace ScpAgent.Bot.Sensors.Intefaces
         void Destruir();
         void MarcarRoomDescubierta(Room room);
         void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria);
+        void RegistrarDaño(float cantidad, string tipo, Vector3 dirHaciaAtacante, bool atacanteEnMemoria);
+        //void _CargarDaño(AgentObservation obs);
+        bool TieneEnMemoriaJugadores(int playerId);
     }
 }

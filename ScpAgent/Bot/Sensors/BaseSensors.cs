@@ -14,6 +14,17 @@ using ScpAgent.Bot.Sensors.Memory.Data;
 
 namespace ScpAgent.Bot.Sensors
 {
+    public static class AimTargetCode
+    {   
+        public const float None    = 0.0f; // sin hit
+        public const float Wall    = 0.1f;
+        public const float Floor   = 0.2f;
+        public const float Ceiling = 0.3f;
+        public const float Door    = 0.4f;
+        public const float Locker  = 0.5f;
+        public const float Pickup  = 0.6f;
+        public const float Entity  = 0.7f;
+    }
     public abstract class BaseSensors : ISensors
     {
         // ── Player — NO readonly para poder actualizar tras respawn ────────────
@@ -32,7 +43,7 @@ namespace ScpAgent.Bot.Sensors
         protected const int UPDATE_FREQUENCY = 20;
         protected int _frameCounter = UPDATE_FREQUENCY;
         protected int    _aimCacheCounter  = AIM_CACHE_FRAMES;
-        protected string _cachedAimTarget  = "None";
+        protected float _cachedAimTarget  = 0f;
         protected float  _cachedAimDist    = 0f;
         protected string _cachedAimRoom    = "Unknown";
         protected string _cachedAimDoorName = "None";
@@ -104,6 +115,18 @@ namespace ScpAgent.Bot.Sensors
         protected static readonly Comparison<(Lift d, float dist)> _liftComparison =
             (a, b) => a.dist.CompareTo(b.dist);
         
+        private const float WHISKER_RANGE = 2.5f;   // metros — rango corto, solo obstáculos inmediatos
+        private const int   WHISKER_COUNT = 8;
+        private readonly RaycastHit[] _whiskerBuffer = new RaycastHit[1];
+        private static readonly float[] WHISKER_ANGLES = { 0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f };
+
+        private float   _pendingDamage     = 0f;
+        private string  _pendingDamageType = "Unknown";
+        private Vector3 _pendingDamageDir  = Vector3.zero; // dirección hacia el atacante
+        private bool    _attackerInMemory  = false;
+        private const float DAMAGE_DECAY = 0.5f; // segundos que persiste la info de daño
+        private float   _lastDamageTime = -999f;
+       
         //ESTRATEGIAS:
         protected Func<ItemType, float> _fnPrioridad;
         protected Func<ItemType, string> _fnCategoria;
@@ -213,6 +236,10 @@ namespace ScpAgent.Bot.Sensors
                 Reward      = reward,
                 Done        = done
             };
+
+            _ProcesarWhiskers(observation, pos);
+
+            _CargarDaño(observation);
 
             _ProcesarAimRaycast(observation);
 
@@ -662,7 +689,7 @@ namespace ScpAgent.Bot.Sensors
 
                 if (isDoor)
                 {
-                    _cachedAimTarget = "Door";
+                    _cachedAimTarget = AimTargetCode.Door;
                     if (door != null)
                     {
                         var exD = Door.Get(door);
@@ -671,16 +698,18 @@ namespace ScpAgent.Bot.Sensors
                 }
                 else if (validHit.collider.GetComponentInParent<
                     MapGeneration.Distributors.Locker>() != null)
-                    _cachedAimTarget = "Locker";
+                    _cachedAimTarget = AimTargetCode.Locker;
                 else if (validHit.collider.GetComponentInParent<
                     InventorySystem.Items.Pickups.ItemPickupBase>() != null)
-                    _cachedAimTarget = "Pickup";
+                    _cachedAimTarget = AimTargetCode.Pickup;
+                else if (validHit.collider.GetComponentInParent<ReferenceHub>())
+                    _cachedAimTarget = AimTargetCode.Entity;
                 else
                 {
                     float y = ray.direction.y;
-                    if      (y < -0.40f) _cachedAimTarget = "Floor";
-                    else if (y >  0.40f) _cachedAimTarget = "Ceiling";
-                    else                 _cachedAimTarget = "Wall";
+                    if      (y < -0.40f) _cachedAimTarget = AimTargetCode.Floor;
+                    else if (y >  0.40f) _cachedAimTarget = AimTargetCode.Ceiling;
+                    else                 _cachedAimTarget = AimTargetCode.Wall;
                 }
 
                 var hitRoom = Room.Get(validHit.point);
@@ -690,6 +719,82 @@ namespace ScpAgent.Bot.Sensors
             if (elapsed > 2f)
                 Log.Debug($"[Perf] AimRaycast tardó {elapsed:F1}ms hitCount={hitCount}");
             _CopiarCacheAObs(obs);
+        }
+
+
+        private void _ProcesarWhiskers(AgentObservation obs, Vector3 pos)
+        {
+            if (_player == null || _player.Transform == null) return;
+        
+            // Origen desde la cintura del bot (no los pies, no la cabeza)
+            Vector3 origen = pos + Vector3.up * 0.9f;
+        
+            // Yaw actual del bot (dirección que mira en el plano horizontal)
+            float yawBase = _player.Transform.rotation.eulerAngles.y;
+        
+            for (int i = 0; i < WHISKER_COUNT; i++)
+            {
+                float anguloTotal = yawBase + WHISKER_ANGLES[i];
+                float rad = anguloTotal * Mathf.Deg2Rad;
+        
+                // Dirección horizontal pura (sin componente Y)
+                Vector3 dir = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));
+        
+                int hitCount = Physics.RaycastNonAlloc(origen, dir, _whiskerBuffer, WHISKER_RANGE,
+                    ~0, QueryTriggerInteraction.Ignore);
+        
+                if (hitCount > 0 && _whiskerBuffer[0].collider != null &&
+                    _whiskerBuffer[0].collider.gameObject != _player.GameObject)
+                {
+                    // Normalizado: 0 = obstáculo pegado, 1 = rango libre
+                    obs.WhiskerDist[i] = _whiskerBuffer[0].distance / WHISKER_RANGE;
+                    obs.WhiskerType[i] = _clasificarObstaculo(_whiskerBuffer[0]);
+                }
+                else
+                {
+                    obs.WhiskerDist[i] = 1.0f; // sin obstáculo en el rango
+                    obs.WhiskerType[i] = 0.0f;
+                }
+            }
+        }
+
+        private float _clasificarObstaculo(RaycastHit hit)
+        {
+            var collider = hit.collider.gameObject;
+            if (collider.GetComponentInParent<Interactables.Interobjects.DoorUtils.DoorVariant>())
+                return 0.25f;
+            if (collider.GetComponentInParent<ReferenceHub>())
+                return 0.5f;
+            if (collider.GetComponentInParent<MapGeneration.Distributors.Locker>())
+                return 0.75f
+                ;
+            return 1.0f; //Pared
+        }
+
+        // ── Lectura en GetCurrentState ────────────────────────────────────────────
+        private void _CargarDaño(AgentObservation obs)
+        {
+            float tiempoDesdeUltimoDaño = Time.time - _lastDamageTime;
+        
+            if (_pendingDamage > 0f && tiempoDesdeUltimoDaño < DAMAGE_DECAY)
+            {
+                float maxHealth = _player?.MaxHealth ?? 100f;
+                obs.DamageReceived   = Mathf.Clamp01(_pendingDamage / maxHealth);
+                obs.DamageType       = _pendingDamageType;
+                obs.DamageDirX       = _pendingDamageDir.x;
+                obs.DamageDirZ       = _pendingDamageDir.z;
+                obs.AttackerInMemory = _attackerInMemory;
+            }
+            else
+            {
+                // Sin daño reciente — resetear a cero
+                obs.DamageReceived   = 0f;
+                obs.DamageType       = "None";
+                obs.DamageDirX       = 0f;
+                obs.DamageDirZ       = 0f;
+                obs.AttackerInMemory = false;
+                _pendingDamage       = 0f; // limpiar acumulado
+            }
         }
 
         private void _CargarPersonajesCercanos(AgentObservation obs, Vector3 pos, float rangoRadar = 30f)
@@ -915,7 +1020,7 @@ namespace ScpAgent.Bot.Sensors
 
             // ── Cache del raycast ────────────────────────────────────────────
             _aimCacheCounter   = 0;
-            _cachedAimTarget   = "None";
+            _cachedAimTarget   = 0f;
             _cachedAimDist     = 0f;
             _cachedAimRoom     = "Unknown";
             _cachedAimDoorName = "None";
@@ -927,6 +1032,14 @@ namespace ScpAgent.Bot.Sensors
             _cachedForwardZ    = 0f;
             _frameCounter = UPDATE_FREQUENCY;
             _aimCacheCounter = AIM_CACHE_FRAMES;
+
+
+            _pendingDamage     = 0f;
+            _pendingDamageType = "Unknown";
+            _pendingDamageDir  = Vector3.zero;
+            _attackerInMemory  = false;
+            _lastDamageTime    = -999f;
+
 
             _cachedNearPlayers.Clear();
             _listaTemporalPlayers.Clear();
@@ -1119,5 +1232,17 @@ namespace ScpAgent.Bot.Sensors
 
             return false;
         }
+
+        public void RegistrarDaño(float cantidad, string tipo, Vector3 dirHaciaAtacante, bool atacanteEnMemoria)
+        {
+            _pendingDamage     += cantidad; // acumular si hay varios hits en el mismo tick
+            _pendingDamageType  = tipo;
+            _pendingDamageDir   = dirHaciaAtacante;
+            _attackerInMemory   = atacanteEnMemoria;
+            _lastDamageTime     = Time.time;
+        }
+        public bool TieneEnMemoriaJugadores(int playerId)
+            => _memoriaJugadores.ContainsKey(playerId);
+
     }
 }
