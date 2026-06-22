@@ -5,16 +5,13 @@ using UnityEngine;
 using Exiled.API.Features;
 using Exiled.API.Features.Pickups;
 using ScpAgent.Bot.Data;
-using Exiled.API.Features.Doors;
-using ScpAgent.Bot;
 using Exiled.API.Features.Lockers;
 using Exiled.API.Enums;
-using RemoteAdmin.Communication;
 using ScpAgent.Bot.Sensors.Data;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Memory;
 using ScpAgent.Bot.Sensors.Memory.Data;
-using Exiled.API.Enums;
+
 
 namespace ScpAgent.Bot.Sensors
 {
