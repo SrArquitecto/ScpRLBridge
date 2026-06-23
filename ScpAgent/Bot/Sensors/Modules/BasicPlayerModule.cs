@@ -35,8 +35,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
             else
             {
-                hasKeycard = _player.Items.Any(i => _IsKeycard(i.Type));
-                playerTier = GetBestKeycardTier(_player); 
+                hasKeycard = _player.Items.Any(i => ModuleUtils.IsKeycard(i.Type));
+                playerTier = ModuleUtils.GetBestKeycardTier(_player); 
             }
 
 
@@ -73,38 +73,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             
         }
 
-        private bool _IsKeycard(ItemType t) =>
-            t.ToString().IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
 
-        private bool IsKeycardTypeName(string itemTypeName) => itemTypeName?.IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
-
-        private int GetBestKeycardTier(Player p)
-        {
-            int tier = 0;
-            foreach (var item in p.Items)
-            {
-                int t = 0;
-                switch (item.Type)
-                {
-                    case ItemType.KeycardJanitor:             t = 1; break;
-                    case ItemType.KeycardGuard:               t = 4; break;
-                    case ItemType.KeycardScientist:           t = 2; break;
-                    case ItemType.KeycardResearchCoordinator: t = 3; break;
-                    case ItemType.KeycardChaosInsurgency:     t = 5; break;
-                    case ItemType.KeycardMTFPrivate:          t = 5; break;
-                    case ItemType.KeycardMTFOperative:        t = 6; break;
-                    case ItemType.KeycardMTFCaptain:          t = 7; break;
-                    case ItemType.KeycardZoneManager:         t = 8; break;
-                    case ItemType.KeycardO5:                  t = 9; break;
-                    default:
-                        if (IsKeycardTypeName(item.Type.ToString())) t = 1;
-                        else t = 0;
-                        break;
-                }
-                if (t > tier) tier = t;
-            }
-            return tier;
-        }     // implementa tu lógica
 
 
     }

@@ -69,7 +69,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                                 obs.AimTarget == AimTargetCode.Pickup)
                                && obs.AimDistance <= 2.4f;
             obs.CanInteract = canInteract ? 1 : 0;
-            
+
         }
 
         private void _ProcesarAimRaycast(AgentObservation obs)

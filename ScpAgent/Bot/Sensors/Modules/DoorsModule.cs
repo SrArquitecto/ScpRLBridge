@@ -10,7 +10,7 @@ using ScpAgent.Bot.Sensors.Modules.Memory.Data;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
-    public class DoorModule : ISensorModule
+    public class DoorsModule : ISensorModule
     {
         private Player _player;
         private const float RANGO_MAPA     = 500f;
@@ -25,7 +25,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         private readonly VisualMemory <ObjectMemoryDoor> _memoriaPuertas  = new VisualMemory<ObjectMemoryDoor>(TIEMPO_OLVIDO);
         private static readonly Comparison<(Door d, float dist)> _doorComparison = (a, b) => a.dist.CompareTo(b.dist);
 
-        public DoorModule()
+        public DoorsModule()
         {
             for (int i = 0; i < _doorPool.Length;    i++) 
                 _doorPool[i]    = new DoorData();
@@ -36,7 +36,11 @@ namespace ScpAgent.Bot.Sensors.Modules
         }
         public void Reset()
         {
-
+            _memoriaPuertas.Clear();
+            _doorColliderCache.Clear();
+            _cachedNearDoors.Clear();
+            _doorsConDist.Clear();
+            _cachedDoors  = null;
         }
         public void Actualizar(AgentObservation obs, SensorContext ctx)
         {
@@ -46,9 +50,11 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _CopiarACachePuertas(obs);
                 return;
             }
+            _frameCounter = 0;
             _cachedNearDoors.Clear();
             _doorsConDist.Clear();
-            _doorColliderCache.Clear();
+            //_doorColliderCache.Clear();
+            obs.NearDoors.Clear();
 
             try { _CargarPuertas(ctx.Pos, ctx.PlayerTier); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en PUERTAS: {ex.Message}"); }
@@ -86,10 +92,10 @@ namespace ScpAgent.Bot.Sensors.Modules
                     if (dist >= 50f) continue;
 
                     // Filtro de visibilidad — FOV + raycast
-                    if (ModuleUtils.EsVisible(_player, misOjos, miMirada, d.Position, dist, d.GameObject)) continue;
+                    if (!ModuleUtils.EsVisible(_player, misOjos, miMirada, d.Position, dist, d.GameObject)) continue;
 
                     // Visible ahora — registrar/actualizar memoria
-                    int reqTier = GetDoorRequiredTier(d);
+                    int reqTier = ModuleUtils.GetDoorRequiredTier(d);
                     int doorId = d.GameObject.GetInstanceID();
                     var mem = _memoriaPuertas.ObtenerORegistrar(doorId, d.Position, ahora, d);
                     mem.PermisoPuerta = reqTier;
@@ -121,7 +127,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                         _doorColliderCache[doorId] = colliderName;
                     }
 
-                    int reqTier = GetDoorRequiredTier(d);
+                    int reqTier = ModuleUtils.GetDoorRequiredTier(d);
 
                     var dd = _doorPool[doorCount];
                     dd.Type         = d.RequiredPermissions.ToString();
@@ -160,6 +166,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 var doorRef = mem.ReferenciaObjeto as Door;
 
                 
+                _memoriaPuertas.PurgarOlvidados(ahora);
 
                 if (doorRef != null && doorRef.GameObject != null)
                 {
@@ -173,7 +180,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                         if (valid != null) colliderName = valid.name;
                         _doorColliderCache[doorId] = colliderName;
                     }
-                    int reqTier = GetDoorRequiredTier(doorRef);
+                    int reqTier = ModuleUtils.GetDoorRequiredTier(doorRef);
                     dd.Type         = doorRef.RequiredPermissions.ToString();; // no tenemos el wrapper Door a mano, solo posición
                     dd.Name         = doorRef.Name;
                     dd.ColliderName = colliderName;
@@ -181,7 +188,13 @@ namespace ScpAgent.Bot.Sensors.Modules
                 }
                 else
                 {
-                    //rellenar ----------------------------------------------------------------------------------------------------------------------------------
+                    // Puerta cuyo GameObject fue destruido (cambio de ronda) pero sigue en memoria
+                    // Usamos los datos cacheados en la memoria misma
+                    dd.Type         = "Unknown";
+                    dd.Name         = "Recordada";
+                    dd.ColliderName = "Unknown";
+                    dd.CanOpen      = false; // no podemos saber sin el wrapper
+                    dd.RequiredTier = mem.PermisoPuerta; // lo guardaste al registrar
                 }
                 
                 dd.Distance     = dist / 50f;
@@ -200,7 +213,6 @@ namespace ScpAgent.Bot.Sensors.Modules
                 doorCount++;
             }
 
-            _memoriaPuertas.PurgarOlvidados(ahora);
         }
 
         private void _CopiarACachePuertas(AgentObservation obs)
@@ -208,21 +220,6 @@ namespace ScpAgent.Bot.Sensors.Modules
             obs.NearDoors.Clear();
             obs.NearDoors.AddRange(_cachedNearDoors);
         }
-
-        private int GetDoorRequiredTier(Door d)
-        {
-            var perms = (int)d.RequiredPermissions;
-            if (perms == 0)        return 0;
-            if ((perms & 64)  != 0) return 7;
-            if ((perms & 128) != 0) return 7;
-            if ((perms & 16)  != 0) return 5;
-            if ((perms & 32)  != 0) return 5;
-            if ((perms & 4)   != 0) return 3;
-            if ((perms & 8)   != 0) return 3;
-            if ((perms & 2)   != 0) return 4;
-            if ((perms & 256) != 0) return 6;
-            return 1;
-        } 
 
     }
 }

@@ -12,7 +12,7 @@ using System;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
-    public class RoomModule : ISensorRoomModule
+    public class RoomsModule : ISensorRoomModule
     {
         private Player _player;
         private const float RANGO_MAPA     = 500f;
@@ -26,7 +26,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         private static readonly Comparison<Habitaciones> _roomComparison = 
             (a, b) => b.Prioridad.CompareTo(a.Prioridad) == 0 ? a.Distancia.CompareTo(b.Distancia) : b.Prioridad.CompareTo(a.Prioridad);
 
-        public RoomModule()
+        public RoomsModule()
         {
             for (int i = 0; i < _roomPool.Length;    i++) 
                 _roomPool[i]    = new RoomData();
@@ -53,7 +53,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
 
             _cachedNearRooms.Clear();
-            try { _CargarRooms(obs, ctx.PlayerTier); }
+            obs.NearRooms.Clear();
+            try { _CargarRooms(ctx.PlayerTier); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en ROOMS: {ex.Message}"); }
             _CopiarACacheHabitaciones(obs);
         }
@@ -64,7 +65,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             _roomsDescubiertas.Add(sala.GameObject.GetInstanceID());
         }
 
-        private void _CargarRooms(AgentObservation obs, int playerTier)
+        private void _CargarRooms(int playerTier)
         {
             if (_cachedRooms == null || _cachedRooms.Count == 0)
                 _cachedRooms = new List<Room>(Room.List);

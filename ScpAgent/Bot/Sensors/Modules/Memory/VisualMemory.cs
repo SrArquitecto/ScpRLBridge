@@ -59,6 +59,10 @@ namespace ScpAgent.Bot.Sensors.Modules.Memory
                 _memoria.Remove(id);
         }
 
+        public bool ContainsKey(int id)
+        {
+            return _memoria.ContainsKey(id);
+        }
         public bool TryGet(int id, out T mem) => _memoria.TryGetValue(id, out mem);
         
         public IEnumerable<KeyValuePair<int, T>> Entradas => _memoria;
