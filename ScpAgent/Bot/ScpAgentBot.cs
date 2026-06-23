@@ -250,15 +250,7 @@ namespace ScpAgent.Bot
             }
             Timing.KillCoroutines(_initDelayHandle);
             _LimpiarComponentesPrevios();
-            //_fakeConn.Disconnect();
-            // 2. Borrar del registro estático global
-            //if (ExiledPlayer != null && AllAgents.ContainsKey(ExiledPlayer.Id))
-            //{
-                //AllAgents.Remove(ExiledPlayer.Id);
-            //}
 
-            // 3. Desconectar de Mirror (tu FakeConnection tiene la lógica perfecta para esto)
-            //_fakeConn?.Disconnect();
             _sensores = null;
             // 4. Destruir el objeto físico en Unity
             if (_botGameObject != null)
@@ -268,6 +260,8 @@ namespace ScpAgent.Bot
             Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
             Exiled.Events.Handlers.Player.Hurting             -= OnHurt;
             Log.Debug($"[ScpAgentBot] Agente {AgentId} destruido y memoria liberada.");
+            Exiled.Events.Handlers.Player.RoomChanged -= OnRoomChanged;
+            Exiled.Events.Handlers.Player.Hurting     -= OnHurt;
         }
 
         // ───────────────────────────────────────────────────────────────────────

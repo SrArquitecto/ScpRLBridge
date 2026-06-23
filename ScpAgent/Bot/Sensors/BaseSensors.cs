@@ -164,7 +164,7 @@ namespace ScpAgent.Bot.Sensors
 
         public virtual void ResetEstado()
         {
-
+            BaseSensors.agentCacheData.Clear();
             foreach (var m in _modules) m.Reset();
         }
         public abstract void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria);

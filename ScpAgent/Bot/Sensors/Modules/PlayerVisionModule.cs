@@ -58,6 +58,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         public void Reset()
         {
             _memoria.Clear();
+            _idsAEliminar.Clear();
             _listaTemp.Clear();
             
         }

@@ -40,6 +40,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             _memoriaLockers.Clear();
             _cachedNearLockers.Clear();
             _lockersVisiblesConDist.Clear();
+            _lockersRecordadosConDist.Clear();
             _cachedLockers   = null;
         }
         public void Actualizar(AgentObservation obs, SensorContext ctx)
