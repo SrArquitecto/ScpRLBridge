@@ -1,0 +1,228 @@
+using Exiled.API.Features;
+using Exiled.API.Enums;
+using ScpAgent.Bot.Sensors.Data;
+using UnityEngine;
+using System.Collections.Generic;
+using System;
+using Exiled.API.Features.Doors;
+using ScpAgent.Bot.Sensors.Modules.Memory;
+using ScpAgent.Bot.Sensors.Modules.Memory.Data;
+
+namespace ScpAgent.Bot.Sensors.Modules
+{
+    public class DoorModule : ISensorModule
+    {
+        private Player _player;
+        private const float RANGO_MAPA     = 500f;
+        private const float TIEMPO_OLVIDO = 45f;
+        private const int UPDATE_FREQUENCY = 20;
+        private int _frameCounter = UPDATE_FREQUENCY;
+        protected readonly DoorData[]     _doorPool    = new DoorData[15];
+        private List<Door> _cachedDoors;
+        private Dictionary<int, string> _doorColliderCache = new Dictionary<int, string>();
+        private List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();  
+        protected readonly List<(Door d, float dist)> _doorsConDist = new List<(Door d, float dist)>(50);
+        private readonly VisualMemory <ObjectMemoryDoor> _memoriaPuertas  = new VisualMemory<ObjectMemoryDoor>(TIEMPO_OLVIDO);
+        private static readonly Comparison<(Door d, float dist)> _doorComparison = (a, b) => a.dist.CompareTo(b.dist);
+
+        public DoorModule()
+        {
+            for (int i = 0; i < _doorPool.Length;    i++) 
+                _doorPool[i]    = new DoorData();
+        }
+        public void VincularPlayer(Player player)
+        {
+            _player = player;
+        }
+        public void Reset()
+        {
+
+        }
+        public void Actualizar(AgentObservation obs, SensorContext ctx)
+        {
+            _frameCounter++;
+            if (_frameCounter < UPDATE_FREQUENCY)
+            {
+                _CopiarACachePuertas(obs);
+                return;
+            }
+            _cachedNearDoors.Clear();
+            _doorsConDist.Clear();
+            _doorColliderCache.Clear();
+
+            try { _CargarPuertas(ctx.Pos, ctx.PlayerTier); }
+            catch (Exception ex) { Log.Error($"[Sensors] NULL en PUERTAS: {ex.Message}"); }
+            _CopiarACachePuertas(obs);
+            Log.Debug($"[Perf-BASE] Tras CopiarACachePuertas: obs.NearDoors={obs.NearDoors.Count}");
+        }
+
+        private void _CargarPuertas(Vector3 pos, int playerTier)
+        {
+            if (_cachedDoors == null)
+                _cachedDoors = new List<Door>(Door.List);
+            else
+            {
+                _cachedDoors.Clear();
+                _cachedDoors.AddRange(Door.List);
+            }
+
+            Vector3 miMirada = _player.CameraTransform != null ? _player.CameraTransform.forward : _player.Transform.forward;
+            Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
+            float   ahora    = Time.time;
+
+            _memoriaPuertas.MarcarTodosNoVistos();
+
+            // ── 1. Filtrar por rango y comprobar visibilidad real ────────────────
+            _doorsConDist.Clear();
+            foreach (var d in _cachedDoors)
+            {
+                if (d == null) continue;
+
+                try
+                {
+                    if (d.GameObject == null || d.Transform == null) continue;
+
+                    float dist = Vector3.Distance(d.Transform.position, pos);
+                    if (dist >= 50f) continue;
+
+                    // Filtro de visibilidad — FOV + raycast
+                    if (ModuleUtils.EsVisible(_player, misOjos, miMirada, d.Position, dist, d.GameObject)) continue;
+
+                    // Visible ahora — registrar/actualizar memoria
+                    int reqTier = GetDoorRequiredTier(d);
+                    int doorId = d.GameObject.GetInstanceID();
+                    var mem = _memoriaPuertas.ObtenerORegistrar(doorId, d.Position, ahora, d);
+                    mem.PermisoPuerta = reqTier;
+                    mem.PuertaAbierta = d.IsOpen;
+                    _doorsConDist.Add((d, dist));
+                }
+                catch { continue; }
+            }
+            _doorsConDist.Sort(_doorComparison);
+
+            // ── 2. Volcar puertas VISTAS AHORA al pool ────────────────────────────
+            int doorCount = 0;
+            foreach (var (d, dist) in _doorsConDist)
+            {
+                if (doorCount >= 15) break;
+
+                try
+                {
+                    if (d.GameObject == null) continue;
+
+                    int doorId = d.GameObject.GetInstanceID();
+                    if (!_doorColliderCache.TryGetValue(doorId, out string colliderName))
+                    {
+                        colliderName = "Unknown";
+                        var colliders = d.GameObject.GetComponentsInChildren<Collider>(true);
+                        var valid = System.Array.Find(colliders,
+                            c => !c.isTrigger && !c.name.Contains("TouchScreenPanel") && !c.name.Contains("Frame"));
+                        if (valid != null) colliderName = valid.name;
+                        _doorColliderCache[doorId] = colliderName;
+                    }
+
+                    int reqTier = GetDoorRequiredTier(d);
+
+                    var dd = _doorPool[doorCount];
+                    dd.Type         = d.RequiredPermissions.ToString();
+                    dd.Name         = d.Name;
+                    dd.ColliderName = colliderName;
+                    dd.Distance     = dist / 50f;
+                    dd.RequiredTier = reqTier;
+                    dd.CanOpen      = playerTier >= reqTier;
+                    dd.IsOpen       = d.IsOpen;
+                    dd.RelX         = (d.Position.x - pos.x) / 50f;
+                    dd.RelY         = (d.Position.y - pos.y) / 50f;
+                    dd.RelZ         = (d.Position.z - pos.z) / 50f;
+                    dd.RealRelX     = d.Position.x - pos.x;
+                    dd.RealRelY     = d.Position.y - pos.y;
+                    dd.RealRelZ     = d.Position.z - pos.z;
+                    dd.EsRecordado  = false;
+                    dd.Antiguedad   = 0f;
+                    _cachedNearDoors.Add(dd);
+                    doorCount++;
+                }
+                catch { continue; }
+            }
+
+            // ── 3. Volcar puertas RECORDADAS (no vistas ahora, dentro de memoria) ─
+            foreach (var kv in _memoriaPuertas.Entradas)
+            {
+                if (doorCount >= 15) break;
+                if (kv.Value.VistoEsteCiclo) continue; // ya procesada arriba
+
+                var mem = kv.Value;
+                float dist = Vector3.Distance(mem.UltimaPosicion, pos);
+                if (dist >= 60f) continue; // ya muy lejos, no relevante
+
+
+                var dd = _doorPool[doorCount];
+                var doorRef = mem.ReferenciaObjeto as Door;
+
+                
+
+                if (doorRef != null && doorRef.GameObject != null)
+                {
+                    int doorId = doorRef.GameObject.GetInstanceID();
+                    if (!_doorColliderCache.TryGetValue(doorId, out string colliderName))
+                    {
+                        colliderName = "Unknown";
+                        var colliders = doorRef.GameObject.GetComponentsInChildren<Collider>(true);
+                        var valid = System.Array.Find(colliders,
+                            c => !c.isTrigger && !c.name.Contains("TouchScreenPanel") && !c.name.Contains("Frame"));
+                        if (valid != null) colliderName = valid.name;
+                        _doorColliderCache[doorId] = colliderName;
+                    }
+                    int reqTier = GetDoorRequiredTier(doorRef);
+                    dd.Type         = doorRef.RequiredPermissions.ToString();; // no tenemos el wrapper Door a mano, solo posición
+                    dd.Name         = doorRef.Name;
+                    dd.ColliderName = colliderName;
+                    dd.CanOpen      = playerTier >= reqTier;
+                }
+                else
+                {
+                    //rellenar ----------------------------------------------------------------------------------------------------------------------------------
+                }
+                
+                dd.Distance     = dist / 50f;
+                dd.RequiredTier = 0;
+                
+                dd.IsOpen       = mem.PuertaAbierta; // último estado conocido
+                dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;
+                dd.RelY         = (mem.UltimaPosicion.y - pos.y) / 50f;
+                dd.RelZ         = (mem.UltimaPosicion.z - pos.z) / 50f;
+                dd.RealRelX     = mem.UltimaPosicion.x - pos.x;
+                dd.RealRelY     = mem.UltimaPosicion.y - pos.y;
+                dd.RealRelZ     = mem.UltimaPosicion.z - pos.z;
+                dd.EsRecordado  = true;
+                dd.Antiguedad   = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO; // normalizado 0-1
+                _cachedNearDoors.Add(dd);
+                doorCount++;
+            }
+
+            _memoriaPuertas.PurgarOlvidados(ahora);
+        }
+
+        private void _CopiarACachePuertas(AgentObservation obs)
+        {
+            obs.NearDoors.Clear();
+            obs.NearDoors.AddRange(_cachedNearDoors);
+        }
+
+        private int GetDoorRequiredTier(Door d)
+        {
+            var perms = (int)d.RequiredPermissions;
+            if (perms == 0)        return 0;
+            if ((perms & 64)  != 0) return 7;
+            if ((perms & 128) != 0) return 7;
+            if ((perms & 16)  != 0) return 5;
+            if ((perms & 32)  != 0) return 5;
+            if ((perms & 4)   != 0) return 3;
+            if ((perms & 8)   != 0) return 3;
+            if ((perms & 2)   != 0) return 4;
+            if ((perms & 256) != 0) return 6;
+            return 1;
+        } 
+
+    }
+}

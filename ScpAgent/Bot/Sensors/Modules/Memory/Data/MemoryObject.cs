@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ScpAgent.Bot.Sensors.Memory.Data
+namespace ScpAgent.Bot.Sensors.Modules.Memory.Data
 {
     public class ObjectMemory
     {

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using ScpAgent.Bot.Sensors.Memory.Data;
+using ScpAgent.Bot.Sensors.Modules.Memory.Data;
 
-namespace ScpAgent.Bot.Sensors.Memory
+namespace ScpAgent.Bot.Sensors.Modules.Memory
 {
     /// <summary>
     /// Gestor genérico de memoria visual. 

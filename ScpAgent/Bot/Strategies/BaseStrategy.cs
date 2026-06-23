@@ -35,7 +35,7 @@ namespace ScpAgent.Bot.Strategies
         public void OnRoomChanged(Room roomAnterior, Room roomNueva)
         {
             if (_ctx == null) return;
-
+                
             // Recompensa por explorar una sala nueva (solo la primera vez)
             if (!_salasVisitadas.Contains(roomNueva.GameObject.GetInstanceID()))
             {

@@ -88,7 +88,7 @@ namespace ScpAgent.Bot.Sensors
         // MÉTODO PRINCIPAL
         // ───────────────────────────────────────────────────────────────────────
         public override AgentObservation GetCurrentState(
-            float fixedDelta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
+            float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {   
             if (_player == null || !_player.IsAlive || _player.GameObject == null) 
                 return obsVacia;
@@ -96,12 +96,7 @@ namespace ScpAgent.Bot.Sensors
             // Si la cámara aún no se ha creado en el nuevo cuerpo, abortamos este frame
             if (_player.CameraTransform == null) 
                 return obsVacia;
-            bool hasKeycard  = false;
-            playerTier  = 0;
             
-            
-            hasKeycard = _player.Items.Any(i => _IsKeycard(i.Type));
-            playerTier = GetBestKeycardTier(_player);
             
 
             AgentObservation observation = base.GetCurrentState(fixedDelta, accionAnterior, reward, done, role, playerTier);
@@ -110,8 +105,6 @@ namespace ScpAgent.Bot.Sensors
             Vector3 pos         = _player.Position;
             AgentCacheData data = GetData();
             
-            observation.HasKeycard = hasKeycard;
-            observation.KeycardTier = playerTier;
 
             _CargarElementosCercanos(pos, data.halfX, data.halfY, data.halfZ, playerTier, observation);
             _ProcesarAimRaycast(observation);
@@ -616,36 +609,9 @@ namespace ScpAgent.Bot.Sensors
         
         }
 
-        private bool _IsKeycard(ItemType t) =>
-            t.ToString().IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
+        
 
-        private int GetBestKeycardTier(Player p)
-        {
-            int tier = 0;
-            foreach (var item in p.Items)
-            {
-                int t = 0;
-                switch (item.Type)
-                {
-                    case ItemType.KeycardJanitor:             t = 1; break;
-                    case ItemType.KeycardGuard:               t = 4; break;
-                    case ItemType.KeycardScientist:           t = 2; break;
-                    case ItemType.KeycardResearchCoordinator: t = 3; break;
-                    case ItemType.KeycardChaosInsurgency:     t = 5; break;
-                    case ItemType.KeycardMTFPrivate:          t = 5; break;
-                    case ItemType.KeycardMTFOperative:        t = 6; break;
-                    case ItemType.KeycardMTFCaptain:          t = 7; break;
-                    case ItemType.KeycardZoneManager:         t = 8; break;
-                    case ItemType.KeycardO5:                  t = 9; break;
-                    default:
-                        if (IsKeycardTypeName(item.Type.ToString())) t = 1;
-                        else t = 0;
-                        break;
-                }
-                if (t > tier) tier = t;
-            }
-            return tier;
-        }     // implementa tu lógica
+
         public static int GetKeycardTier(ItemType tipo)
         {
             switch (tipo)
