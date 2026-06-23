@@ -10,7 +10,7 @@ using System;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
-    public class ItemsModule : ISensorModule
+    public class ItemsModule : ISensorItemsModule
     {
         private Player _player;
 
@@ -23,7 +23,8 @@ namespace ScpAgent.Bot.Sensors.Modules
         
         private List<ItemData> _cachedNearItems { get; set;} = new List<ItemData>();
         private readonly VisualMemory<ObjectMemoryItem> _memoriaItems = new VisualMemory<ObjectMemoryItem>(TIEMPO_OLVIDO);
-
+        private Func<ItemType, float> _fnPrioridad;
+        private Func<ItemType, string> _fnCategoria;
         public ItemsModule()
         {
             for (int i = 0; i < _itemPool.Length;  i++) _itemPool[i]  = new ItemData();
@@ -50,12 +51,18 @@ namespace ScpAgent.Bot.Sensors.Modules
             
             _cachedNearItems.Clear();
             obs.NearItems.Clear();
-            try { _CargarItems(ctx.Pos, ctx.FnPrioridad, ctx.FnCategoria); }
+            try { _CargarItems(_player.Position); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en KEYCARDS: {ex.Message}"); }
             _CopiarACache(obs);
         }
 
-        private void _CargarItems(Vector3 pos,Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
+        public void VincularEstrategia(Func<ItemType, float> fnPrioridad,
+        Func<ItemType, string> fnCategoria)
+        {
+            _fnPrioridad = fnPrioridad;
+            _fnCategoria = fnCategoria;
+        }
+        private void _CargarItems(Vector3 pos)
         {
             if (_cachedItems == null)
                 _cachedItems = new List<Pickup>(Pickup.List);
@@ -93,8 +100,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             // Ordenar por prioridad del rol activo, no solo por distancia
             itemsConDist.Sort((a, b) =>
             {
-                float prioA = fnPrioridad?.Invoke(a.p.Type) ?? 10f;
-                float prioB = fnPrioridad?.Invoke(b.p.Type) ?? 10f;
+                float prioA = _fnPrioridad?.Invoke(a.p.Type) ?? 10f;
+                float prioB = _fnPrioridad?.Invoke(b.p.Type) ?? 10f;
                 // Prioridad descendente; a igual prioridad, más cercano primero
                 int cmp = prioB.CompareTo(prioA);
                 return cmp != 0 ? cmp : a.dist.CompareTo(b.dist);
@@ -108,8 +115,8 @@ namespace ScpAgent.Bot.Sensors.Modules
         
                 var id = _itemPool[itemCount];
                 id.Type      = pk.Type.ToString();
-                id.Category  = fnCategoria?.Invoke(pk.Type) ?? "Other";
-                id.Prioridad = fnPrioridad?.Invoke(pk.Type) ?? 10f;
+                id.Category  = _fnCategoria?.Invoke(pk.Type) ?? "Other";
+                id.Prioridad = _fnPrioridad?.Invoke(pk.Type) ?? 10f;
                 id.Distance  = dist / 25f;
                 id.RelX      = (pk.Position.x - pos.x) / 25f;
                 id.RelY      = (pk.Position.y - pos.y) / 25f;
@@ -139,8 +146,8 @@ namespace ScpAgent.Bot.Sensors.Modules
                 var id = _itemPool[itemCount];
                 id.Type      = tipoRecordado.ToString();
                 id.Tier = ModuleUtils.GetKeycardTier(tipoRecordado);
-                id.Category  = fnCategoria?.Invoke(tipoRecordado) ?? "Other";
-                id.Prioridad = fnPrioridad?.Invoke(tipoRecordado) ?? 10f;
+                id.Category  = _fnCategoria?.Invoke(tipoRecordado) ?? "Other";
+                id.Prioridad = _fnPrioridad?.Invoke(tipoRecordado) ?? 10f;
                 id.Distance  = dist / 25f;
                 id.RelX      = (mem.UltimaPosicion.x - pos.x) / 25f;
                 id.RelY      = (mem.UltimaPosicion.y - pos.y) / 25f;

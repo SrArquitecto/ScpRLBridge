@@ -68,10 +68,10 @@ namespace ScpAgent.Bot.Sensors.Modules
  
             if (_player == null || !_player.IsAlive) return;
  
-            Vector3 pos      = ctx.Pos;
-            Vector3 misOjos  = ctx.MisOjos;
-            Vector3 miMirada = ctx.MiMirada;
-            float   ahora    = ctx.TimeNow;
+            Vector3 pos      = _player.Position;
+            Vector3 miMirada = _player.CameraTransform != null ? _player.CameraTransform.forward : _player.Transform.forward;
+            Vector3 misOjos  = _player.CameraTransform != null ? _player.CameraTransform.position : pos + Vector3.up;
+            float   ahora    = Time.time;
  
             _listaTemp.Clear();
  
@@ -189,7 +189,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                     Vector3 ojosEnemigo  = target.CameraTransform != null
                         ? target.CameraTransform.position
                         : target.Position + Vector3.up;
-                    Vector3 dirHaciaMi   = (ctx.MisOjos - ojosEnemigo).normalized;
+                    Vector3 dirHaciaMi   = (misOjos - ojosEnemigo).normalized;
                     Vector3 miradaEnemigo = target.CameraTransform != null
                         ? target.CameraTransform.forward
                         : target.Transform.forward;

@@ -22,7 +22,6 @@ namespace ScpAgent.Bot.Strategies
 
         public virtual void OnUnbind()
         {
-            
             _ctx = null;
         }
 

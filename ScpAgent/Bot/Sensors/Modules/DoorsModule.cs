@@ -56,7 +56,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             //_doorColliderCache.Clear();
             obs.NearDoors.Clear();
 
-            try { _CargarPuertas(ctx.Pos, ctx.PlayerTier); }
+            try { _CargarPuertas(_player.Position, ModuleUtils.GetBestKeycardTier(_player)); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en PUERTAS: {ex.Message}"); }
             _CopiarACachePuertas(obs);
             Log.Debug($"[Perf-BASE] Tras CopiarACachePuertas: obs.NearDoors={obs.NearDoors.Count}");

@@ -51,7 +51,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             _frameCounter = 0;
             obs.NearLifts.Clear();
             _cachedNearLifts.Clear();
-            try { _CargarAscensores(ctx.Pos); }
+            try { _CargarAscensores(_player.Position); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en KEYCARDS: {ex.Message}"); }
             _CopiarACache(obs);
         }
@@ -122,7 +122,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _cachedNearLifts.Add(ld);
                 liftCount++;
             }
-            
+
             _memoriaLifts.PurgarOlvidados(ahora);
 
             foreach (var kv in _memoriaLifts.Entradas)

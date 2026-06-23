@@ -29,7 +29,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             if (_player == null || _player.Transform == null) return;
         
             // Origen desde la cintura del bot (no los pies, no la cabeza)
-            Vector3 origen = ctx.Pos + Vector3.up * 0.9f;
+            Vector3 origen = _player.Position + Vector3.up * 0.9f;
         
             // Yaw actual del bot (dirección que mira en el plano horizontal)
             float yawBase = _player.Transform.rotation.eulerAngles.y;

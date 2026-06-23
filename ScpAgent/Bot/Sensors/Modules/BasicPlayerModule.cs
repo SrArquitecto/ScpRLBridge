@@ -25,7 +25,8 @@ namespace ScpAgent.Bot.Sensors.Modules
         public void Actualizar(AgentObservation obs, SensorContext ctx)
         {
             var faction = _player.Role.Team;
-
+            var pos = _player.Position;
+            var camara = _player.CameraTransform.rotation.eulerAngles;
             bool hasKeycard  = false;
             int playerTier  = 0;
             if (faction == PlayerRoles.Team.SCPs)
@@ -40,7 +41,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
 
 
-            Vector3 relativePos = ctx.Pos - ctx.Center;
+            Vector3 relativePos = _player.Position - ctx.Center;
 
             float relX = 0f, relY = 0f, relZ = 0f;
 
@@ -51,17 +52,17 @@ namespace ScpAgent.Bot.Sensors.Modules
             
             obs.Faction     = faction;
             obs.FactionId   = (float)faction/8f;
-            obs.PosX        = ctx.Pos.x;
-            obs.PosY        = ctx.Pos.y; 
-            obs.PosZ        = ctx.Pos.z;
+            obs.PosX        = pos.x;
+            obs.PosY        = pos.y; 
+            obs.PosZ        = pos.z;
             obs.RelX        = relX;
             obs.RelY        = relY;
             obs.RelZ        = relZ;
-            obs.GPSX        = Mathf.Clamp(ctx.Pos.x / RANGO_MAPA, -1f, 1f);
-            obs.GPSY        = Mathf.Clamp(ctx.Pos.y / RANGO_MAPA, -1f, 1f);
-            obs.GPSZ        = Mathf.Clamp(ctx.Pos.z / RANGO_MAPA, -1f, 1f);
-            obs.Yaw         = ctx.CamRotation.y;
-            obs.Pitch       = ctx.CamRotation.x;
+            obs.GPSX        = Mathf.Clamp(pos.x / RANGO_MAPA, -1f, 1f);
+            obs.GPSY        = Mathf.Clamp(pos.y / RANGO_MAPA, -1f, 1f);
+            obs.GPSZ        = Mathf.Clamp(pos.z / RANGO_MAPA, -1f, 1f);
+            obs.Yaw         = camara.y;
+            obs.Pitch       = camara.x;
             obs.Health      = _player.Health / _player.MaxHealth;
             obs.Zone        = _player.CurrentRoom?.Zone.ToString() ?? "Unknown";
             obs.Room        = _player.CurrentRoom?.Type.ToString() ?? "Unknown";

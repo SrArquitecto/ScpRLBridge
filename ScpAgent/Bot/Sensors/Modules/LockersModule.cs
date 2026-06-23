@@ -53,7 +53,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             _frameCounter = 0;
             obs.NearLockers.Clear();
             _cachedNearLockers.Clear();
-            try { _CargarLockers(ctx.Pos); }
+            try { _CargarLockers(_player.Position); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en LOCKERS: {ex.Message}"); }
         
             _CopiarACache(obs);
@@ -141,7 +141,7 @@ namespace ScpAgent.Bot.Sensors.Modules
 
             // Ordenar los recuerdos por cercanía
             _lockersRecordadosConDist.Sort((a, b) => a.DistMetros.CompareTo(b.DistMetros));
-            
+
             _memoriaLockers.PurgarOlvidados(ahora);
             // Volcar los recuerdos en los huecos sobrantes del pool
             foreach (var (mem, distMetros) in _lockersRecordadosConDist)

@@ -4,7 +4,7 @@ using ScpAgent.Bot.Data;
 using ScpAgent.Bot.Sensors.Data;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Modules;
-
+using System;
 
 namespace ScpAgent.Bot.Sensors
 {   
@@ -12,10 +12,10 @@ namespace ScpAgent.Bot.Sensors
 
     public class HumanSensors : BaseSensors
     {
-        private readonly ISensorModule        _lockers    = new LockersModule();
+        private readonly ISensorModule           _lockers   = new LockersModule();
 
-        private readonly ISensorModule        _inventory = new InventoryModule();
-        private readonly ISensorModule        _items = new ItemsModule();
+        private readonly ISensorInventoryModule  _inventory = new InventoryModule();
+        private readonly ISensorItemsModule      _items     = new ItemsModule();
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
         // ───────────────────────────────────────────────────────────────────────
@@ -26,23 +26,18 @@ namespace ScpAgent.Bot.Sensors
         public override void Init()
         {   
             base.Init();
-            
-            
-            
+            _modules.Add(_lockers);
+            _modules.Add(_inventory);
+            _modules.Add(_items);
                 
         }
 
-        /*
-        public void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
+        public override void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
         {
-            _fnPrioridad = fnPrioridad;
-            _fnCategoria = fnCategoria;
+            _items.VincularEstrategia(fnPrioridad, fnCategoria);
+            _inventory.VincularEstrategia(fnCategoria);
         }
-        */
 
-        // ───────────────────────────────────────────────────────────────────────
-        // MÉTODO PRINCIPAL
-        // ───────────────────────────────────────────────────────────────────────
         public override AgentObservation GetCurrentState(
             float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {   
@@ -53,8 +48,6 @@ namespace ScpAgent.Bot.Sensors
             if (_player.CameraTransform == null) 
                 return obsVacia;
             
-            
-
             AgentObservation observation = base.GetCurrentState(delta, accionAnterior, reward, done, role, playerTier);
 
 
@@ -69,68 +62,17 @@ namespace ScpAgent.Bot.Sensors
                 //Log.Info($"PLAYER {_player.Nickname} ACTION: {accionAnterior} | POSICION: {pos} | AIMTARGET: {observation.AimTarget} | AIMDISTANCE: {observation.AimDistance} | VEL LINEAL: {vLin} | VEL LATERAL: {vLat} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
             return observation;
         }
-
-        // ───────────────────────────────────────────────────────────────────────
-        // VELOCIDADES
-        // ───────────────────────────────────────────────────────────────────────
-
-        // ───────────────────────────────────────────────────────────────────────
-        // ELEMENTOS CERCANOS
-        // ───────────────────────────────────────────────────────────────────────
-
-
-    
-
-        
-        
-
-
-        
-
-        // ───────────────────────────────────────────────────────────────────────
-        // AIM RAYCAST
-        // ───────────────────────────────────────────────────────────────────────
-    
-        
         public override void ResetEstado()
         {
             base.ResetEstado();
-            // ── Estado de movimiento ─────────────────────────────────────────
- 
-            // ── Listas de entorno cercano ────────────────────────────────────
-            
-
-            // ── Contador de frames ───────────────────────────────────────────
-            //_frameCounter = 0;
-
-            Log.Debug($"[AgentSensors] Sensores reseteados para nueva ronda.");
         }
-
         public override void Destruir()
         {
             _player = null;
             ResetEstado();    
         
         }
-
-        
-
-
-        
-        public string CategorizarItem(ItemType tipo)
-        {
-            string s = tipo.ToString();
-            if (s.StartsWith("Gun"))              return "Weapon";
-            if (s.StartsWith("Ammo"))             return "Ammo";
-            if (s.StartsWith("Armor"))            return "Armor";
-            if (s.Contains("Keycard"))            return "Keycard";
-            if (s == "Medkit" || s == "Painkillers" || s == "Adrenaline") return "Medical";
-            if (s.StartsWith("Grenade") || s == "SCP018") return "Tactical";
-            return "Other";
-        }
-    // implementa tu lógica
-
-        
+      
         
     }
 }

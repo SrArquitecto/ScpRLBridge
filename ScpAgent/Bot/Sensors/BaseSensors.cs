@@ -11,18 +11,19 @@ using ScpAgent.Bot.Sensors.Modules.Memory;
 using ScpAgent.Bot.Sensors.Data;
 using ScpAgent.Bot.Sensors.Modules.Memory.Data;
 using ScpAgent.Bot.Sensors.Modules;
+using PlayerRoles.PlayableScps.Scp079.Rewards;
+using System.Runtime.InteropServices.ComTypes;
 
 
 namespace ScpAgent.Bot.Sensors
 {
-
     public abstract class BaseSensors : ISensors
     {
         // ── Player — NO readonly para poder actualizar tras respawn ────────────
         protected Player _player;
         protected int _agentId;
         public static readonly AgentObservation obsVacia = new AgentObservation { Done = true };
-        
+        private readonly AgentObservation _obsCache = new AgentObservation();
 
         // ── Estado de movimiento ────────────────────────────────────────────────
         protected Vector3 _lastPos;
@@ -45,16 +46,19 @@ namespace ScpAgent.Bot.Sensors
         protected Func<ItemType, float> _fnPrioridad;
         protected Func<ItemType, string> _fnCategoria;
 
+
+        protected readonly List<ISensorModule> _modules = new List<ISensorModule>();
+
         //MODULOS DE SENSORES
         protected readonly ISensorPlayerModule  _players        = new PlayerVisionModule();
         protected readonly ISensorDamageModule  _damage         = new DamageModule();
         protected readonly ISensorRoomModule    _rooms          = new RoomsModule();
         protected readonly ISensorModule        _doors          = new DoorsModule();
         protected readonly ISensorModule        _lifts          = new LiftsModule();
-        protected readonly ISensorModule        _velocity       = new VelocityModule();
+        protected readonly ISensorVelocityModule        _velocity       = new VelocityModule();
         protected readonly ISensorModule        _whiskers       = new WhiskersModule();
         protected readonly ISensorModule        _basic          = new BasicPlayerModule();
-        protected readonly ISensorModule        _aim            = new WhiskersModule();
+        protected readonly ISensorModule        _aim            = new AimModule();
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -66,8 +70,15 @@ namespace ScpAgent.Bot.Sensors
 
         public virtual void Init()
         {
-            
-            
+            _modules.Add(_players);
+            _modules.Add(_damage);
+            _modules.Add(_rooms);
+            _modules.Add(_doors);
+            _modules.Add(_lifts);
+            _modules.Add(_velocity);
+            _modules.Add(_whiskers);
+            _modules.Add(_basic);
+            _modules.Add(_aim);
         }
 
         /// <summary>
@@ -81,18 +92,13 @@ namespace ScpAgent.Bot.Sensors
             // Actualizar posición base con la nueva posición de spawn
             if (_player != null)
             {
-                _lastPos   = _player.Position;
-                _lastYaw   = _player.CameraTransform.rotation.eulerAngles.y;
-                _lastPitch = _player.CameraTransform.rotation.eulerAngles.x;
+                _velocity.SetLastPos(_player.Position);
+                _velocity.SetLastYaw(_player.CameraTransform.rotation.eulerAngles.y);
+                _velocity.SetLastPitch(_player.CameraTransform.rotation.eulerAngles.x);
             }
+            foreach (var m in _modules) m.VincularPlayer(_player);
 
             Log.Debug($"[AgentSensors] Player vinculado: {freshPlayer?.Nickname}");
-        }
-
-        public void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
-        {
-            _fnPrioridad = fnPrioridad;
-            _fnCategoria = fnCategoria;
         }
 
         /// <summary>
@@ -108,19 +114,28 @@ namespace ScpAgent.Bot.Sensors
 
             Vector3 pos         = _player.Position;
             Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
-            AgentCacheData data = GetData();
-            Vector3 relativePos = pos - data.center;
+            var obs = _obsCache;
+            SensorContext ctx = _BuildContext(delta, reward, accionAnterior, done);
 
-            AgentObservation obs = new AgentObservation();
-            
-
-
-            //Actualizamos ultimas posiciones de la camara y el personaje
-            _lastYaw   = camRotation.y;
-            _lastPitch = camRotation.x;
-            _lastPos = pos;
+            foreach (var module in _modules)
+                module.Actualizar(obs, ctx);
 
             return obs;
+        }
+
+        private SensorContext _BuildContext(float deltaTime, float reward, int lastAction, bool done)
+        {
+            return new SensorContext
+            {
+                HalfX       = GetData().halfX,
+                HalfY       = GetData().halfY,
+                HalfZ       = GetData().halfZ,
+                Center      = GetData().center,
+                Delta       = deltaTime,
+                Reward      = reward,
+                LastAction  = lastAction,
+                Done        = done
+            };
         }
         
         public void MarcarRoomDescubierta(Room sala)
@@ -144,11 +159,10 @@ namespace ScpAgent.Bot.Sensors
 
         public virtual void ResetEstado()
         {
-            _lastPos   = Vector3.zero;
-            _lastYaw   = 0f;
-            _lastPitch = 0f;
 
+            foreach (var m in _modules) m.Reset();
         }
+        public abstract void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria);
         
         public abstract void Destruir();
 

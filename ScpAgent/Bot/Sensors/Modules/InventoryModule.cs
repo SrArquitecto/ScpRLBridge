@@ -5,10 +5,11 @@ using Exiled.API.Enums;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
-    public class InventoryModule : ISensorModule
+    public class InventoryModule : ISensorInventoryModule
     {
         private Player _player;
         private readonly InventoryItemData[] _inventoryPool = new InventoryItemData[8];
+        private Func<ItemType, string> _fnCategoria;
         public InventoryModule()
         {
             for (int i = 0; i < _inventoryPool.Length;  i++) _inventoryPool[i]  = new InventoryItemData();
@@ -23,9 +24,9 @@ namespace ScpAgent.Bot.Sensors.Modules
         }
         public void Actualizar(AgentObservation obs, SensorContext ctx)
         {
-            _CargarInventario(obs, ctx.FnCategoria);
+            _CargarInventario(obs);
         }
-        private void _CargarInventario(AgentObservation obs, Func<ItemType, string> fnCategoria)
+        private void _CargarInventario(AgentObservation obs)
         {
             obs.Inventory.Clear();
             if (_player == null || !_player.IsAlive) return;
@@ -40,7 +41,7 @@ namespace ScpAgent.Bot.Sensors.Modules
 
                 var inv = _inventoryPool[slotIndex];
                 inv.Type       = item.Type.ToString();
-                inv.Category   = fnCategoria?.Invoke(item.Type) ?? "Other";
+                inv.Category   = _fnCategoria?.Invoke(item.Type) ?? "Other";
                 inv.Tier       = ModuleUtils.GetKeycardTier(item.Type);
                 inv.IsEquipped = itemEquipado != null && item.Serial == itemEquipado.Serial;
                 inv.Ammo       = 0;
@@ -73,6 +74,10 @@ namespace ScpAgent.Bot.Sensors.Modules
                 obs.Ammo44cal   = _player.GetAmmo(AmmoType.Ammo44Cal);
             }
             catch { }
+        }
+        public void VincularEstrategia(Func<ItemType, string> fnCategoria)
+        {
+            _fnCategoria = fnCategoria;
         }
 
     }

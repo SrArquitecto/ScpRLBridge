@@ -54,7 +54,7 @@ namespace ScpAgent.Bot.Sensors.Modules
 
             _cachedNearRooms.Clear();
             obs.NearRooms.Clear();
-            try { _CargarRooms(ctx.PlayerTier); }
+            try { _CargarRooms(ModuleUtils.GetBestKeycardTier(_player)); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en ROOMS: {ex.Message}"); }
             _CopiarACacheHabitaciones(obs);
         }

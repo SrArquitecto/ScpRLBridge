@@ -81,7 +81,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _CopiarCacheAObs(obs);
                 return;
             }
-            float t0 = UnityEngine.Time.realtimeSinceStartup;
+
             _aimCacheCounter = 0;
             var ray = new Ray(_player.CameraTransform.position, _player.CameraTransform.forward);
             int hitCount = Physics.RaycastNonAlloc(ray, _raycastBuffer, 75f);
@@ -150,9 +150,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 var hitRoom = Room.Get(validHit.point);
                 _cachedAimRoom = hitRoom != null ? hitRoom.Type.ToString() : "Unknown";
             }
-            float elapsed = (UnityEngine.Time.realtimeSinceStartup - t0) * 1000f;
-            if (elapsed > 2f)
-                Log.Debug($"[Perf] AimRaycast tardó {elapsed:F1}ms hitCount={hitCount}");
+            
             _CopiarCacheAObs(obs);
         }  
 
