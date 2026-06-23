@@ -111,11 +111,16 @@ namespace ScpAgent.Bot.Sensors
         public virtual AgentObservation GetCurrentState(
             float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {
+            if (_player == null || !_player.IsAlive || _player.GameObject == null)
+                return obsVacia;
+            if (_player.CameraTransform == null)
+                return obsVacia;
 
             Vector3 pos         = _player.Position;
             Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
             var obs = _obsCache;
-            SensorContext ctx = _BuildContext(delta, reward, accionAnterior, done);
+            var data = GetData();
+            SensorContext ctx = _BuildContext(delta, reward, accionAnterior, data, done);
 
             foreach (var module in _modules)
                 module.Actualizar(obs, ctx);
@@ -123,14 +128,14 @@ namespace ScpAgent.Bot.Sensors
             return obs;
         }
 
-        private SensorContext _BuildContext(float deltaTime, float reward, int lastAction, bool done)
+        private SensorContext _BuildContext(float deltaTime, float reward, int lastAction, AgentCacheData data, bool done)
         {
             return new SensorContext
             {
-                HalfX       = GetData().halfX,
-                HalfY       = GetData().halfY,
-                HalfZ       = GetData().halfZ,
-                Center      = GetData().center,
+                HalfX       = data.halfX,
+                HalfY       = data.halfY,
+                HalfZ       = data.halfZ,
+                Center      = data.center,
                 Delta       = deltaTime,
                 Reward      = reward,
                 LastAction  = lastAction,

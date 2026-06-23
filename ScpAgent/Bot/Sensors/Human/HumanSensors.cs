@@ -40,26 +40,11 @@ namespace ScpAgent.Bot.Sensors
 
         public override AgentObservation GetCurrentState(
             float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
-        {   
-            if (_player == null || !_player.IsAlive || _player.GameObject == null) 
-                return obsVacia;
-
-            // Si la cámara aún no se ha creado en el nuevo cuerpo, abortamos este frame
-            if (_player.CameraTransform == null) 
-                return obsVacia;
-            
+        {     
             AgentObservation observation = base.GetCurrentState(delta, accionAnterior, reward, done, role, playerTier);
-
-
             Vector3 pos         = _player.Position;
             AgentCacheData data = GetData();
-            
-            
-            
-
-            
-            //if (_player.Nickname == "IA_Agent_0")
-                //Log.Info($"PLAYER {_player.Nickname} ACTION: {accionAnterior} | POSICION: {pos} | AIMTARGET: {observation.AimTarget} | AIMDISTANCE: {observation.AimDistance} | VEL LINEAL: {vLin} | VEL LATERAL: {vLat} | VEL VERTICAL: {vLin} | VEL ANGULAR: {angVelYaw}");
+        
             return observation;
         }
         public override void ResetEstado()
