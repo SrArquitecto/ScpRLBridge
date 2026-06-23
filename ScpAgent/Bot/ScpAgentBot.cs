@@ -214,7 +214,8 @@ namespace ScpAgent.Bot
             _lastPos = posicionSpawn;
         }
         public void ResetEstado()
-        {
+        {   
+            BaseSensors.agentCacheData.Clear();
             // ── Estado de acción ────────────────────────────────────────────
             _ultimaAccion   = 12; // NOOP
             _lastActionTime = 0f;

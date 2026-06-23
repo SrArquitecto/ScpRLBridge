@@ -133,8 +133,9 @@ namespace ScpAgent.Managers
                 Timing.CallDelayed(0.5f, () => OnBotSpawnComplete(agentId, Player.Get(exiledPlayer?.GameObject)));
                 return;
             }
+            
             _pool[agentId].OnSpawnComplete(exiledPlayer);
-
+            
             Log.Debug($"[AgentManager] Agente {agentId} ({exiledPlayer.Nickname}) listo. " +
                      $"({NumListos}/{_numAgentes})");
         }

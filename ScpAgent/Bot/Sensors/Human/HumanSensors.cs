@@ -76,12 +76,13 @@ namespace ScpAgent.Bot.Sensors
             for (int i = 0; i < _inventoryPool.Length;  i++) _inventoryPool[i]  = new InventoryItemData();
         }
 
+        /*
         public void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
         {
             _fnPrioridad = fnPrioridad;
             _fnCategoria = fnCategoria;
         }
-
+        */
 
         // ───────────────────────────────────────────────────────────────────────
         // MÉTODO PRINCIPAL

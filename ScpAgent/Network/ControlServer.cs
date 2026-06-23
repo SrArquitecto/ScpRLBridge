@@ -229,6 +229,33 @@ namespace ScpAgent.Network
                     reader.Dispose(); writer.Dispose(); stream.Dispose(); cliente.Close(); 
                     return; 
                 }
+                    // Comando de curriculum: "CONFIG:clave=valor"
+                if (handshake.StartsWith("CONFIG:"))
+                {
+                    string payload = handshake.Substring(7); // "clave=valor"
+                    int sep = payload.IndexOf('=');
+                    if (sep > 0)
+                    {
+                        string clave = payload.Substring(0, sep).Trim();
+                        string valor = payload.Substring(sep + 1).Trim();
+                        ScpAgent.Curriculum.CurriculumConfig.AplicarConfig(clave, valor);
+                        await writer.WriteLineAsync("OK");
+                    }
+                    else
+                    {
+                        await writer.WriteLineAsync("ERROR:formato_invalido");
+                    }
+                    cliente.Close();
+                    return;
+                }
+            
+                // Consultar configuración actual: "GET_CONFIG"
+                if (handshake == "GET_CONFIG")
+                {
+                    await writer.WriteLineAsync(ScpAgent.Curriculum.CurriculumConfig.ToJson());
+                    cliente.Close();
+                    return;
+                }
 
                 // ── HANDSHAKE "HELLO_" (Corto) ──────────────────────────────────────────────────
                 if (handshake.StartsWith("HELLO_") && int.TryParse(handshake.Substring(6), out int numAgents))
