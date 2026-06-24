@@ -33,13 +33,13 @@ namespace ScpAgent.Bot.Sensors.Modules
         private readonly VisualMemory<ObjectMemory> _memoria = new VisualMemory<ObjectMemory>(TIEMPO_OLVIDO);
  
         private readonly List<int>   _idsAEliminar    = new List<int>(8);
-        private readonly List<Actor> _listaTemp       = new List<Actor>(10);
+        private readonly List<Actor> _listaTemp       = new List<Actor>(5);
  
         // ── Pool de salida (sin alloc) ───────────────────────────────────
         private readonly ActorData[] _pool = new ActorData[5];
  
         // ── Buffer de raycast (sin alloc) ────────────────────────────────
-        private readonly RaycastHit[] _rayBuffer = new RaycastHit[10];
+        private readonly RaycastHit[] _rayBuffer = new RaycastHit[5];
  
         private static readonly IComparer<RaycastHit> _rayComparer =
             Comparer<RaycastHit>.Create((a, b) => a.distance.CompareTo(b.distance));

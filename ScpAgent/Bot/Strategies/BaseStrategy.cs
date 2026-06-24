@@ -2,18 +2,24 @@ using Exiled.API.Features;
 using PlayerRoles;
 using ScpAgent.Bot.Strategies.Interfaces;
 using System.Collections.Generic;
+using UnityEngine;
+
 namespace ScpAgent.Bot.Strategies
 {
     public abstract class BaseStrategy : IAgentRoleStrategyBase
     {
+        protected BotMovement _movimiento;
         protected readonly HashSet<int> _salasVisitadas = new HashSet<int>();
         public RoleTypeId Role { get; }
         protected AgentContext _ctx;
 
+    
         public BaseStrategy(RoleTypeId role) 
         {
             Role = role;
         }
+        public abstract void InicializarMovimiento(GameObject go, CharacterController cc);
+        public abstract void ActualizarFisica(float deltaTime, Player player, int accion, GameObject go);
 
         public virtual void OnBind(AgentContext ctx)
         {

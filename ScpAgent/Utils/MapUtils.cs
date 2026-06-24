@@ -1,6 +1,8 @@
 using UnityEngine;
 using Exiled.API.Features;
-
+using ScpAgent.Bot.Sensors.Intefaces;
+using ScpAgent.Bot.Sensors;
+using ScpAgent.Bot.Data;
 
 public static class MapUtils
 { 
@@ -42,4 +44,34 @@ public static class MapUtils
         
         return totalBounds;
     }
+
+    public static void addBoundsToCache(Player player, ISensors sensores)
+    {
+        Bounds b = MapUtils.ObtenerBoundsTotal(player.CurrentRoom);
+        int pid = player.Id;
+            
+        if (!BaseSensors.agentCacheData.ContainsKey(pid))
+            BaseSensors.agentCacheData[pid] = new AgentCacheData();
+
+        BaseSensors.agentCacheData[pid].center = b.center;
+        BaseSensors.agentCacheData[pid].halfX = b.size.x / 2f;
+        BaseSensors.agentCacheData[pid].halfY = b.size.y / 2f;
+        BaseSensors.agentCacheData[pid].halfZ = b.size.z / 2f;
+        BaseSensors.agentCacheData[pid].IsDataReady   = true;   
+
+        sensores?.MarcarRoomDescubierta(player.CurrentRoom);        
+    }
+
+    public static void destroyBoundsCache(int idAntiguo, int idNuevo)
+    {
+        if (idAntiguo != idNuevo && idAntiguo >= 0)
+        {
+            if (BaseSensors.agentCacheData.TryGetValue(idAntiguo, out var datos))
+            {
+                BaseSensors.agentCacheData[idNuevo] = datos;
+                BaseSensors.agentCacheData.Remove(idAntiguo);
+                //Log.Debug($"[ScpAgentBot] Cache migrada ID {idAntiguo} → {idNuevo}.");
+            }
+        }
+    }  
 }

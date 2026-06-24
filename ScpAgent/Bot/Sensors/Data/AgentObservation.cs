@@ -84,6 +84,17 @@ namespace ScpAgent.Bot.Sensors.Data
         // Estado del entrenamiento de RL
         public float Reward { get; set; }
         public bool Done { get; set; }
+
+        public void Clear()
+        {
+            Inventory.Clear();
+            NearItems.Clear();
+            NearDoors.Clear();
+            NearLifts.Clear();
+            NearLockers.Clear();
+            NearRooms.Clear();
+            NearPlayers.Clear();
+        }
     }
 
     // Sub-estructuras para el entorno

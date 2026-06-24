@@ -1,6 +1,6 @@
 using Exiled.API.Features;
 using ScpAgent.Bot.Sensors.Data;
-using System;
+using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 
@@ -10,6 +10,9 @@ namespace ScpAgent.Bot.Sensors.Modules
     {
         private Player _player;
         const float RANGO_MAPA     = 500f;
+        // ── CACHÉ DE ENUMS ──
+        private static readonly Dictionary<Exiled.API.Enums.ZoneType, string> _zoneCache = new Dictionary<Exiled.API.Enums.ZoneType, string>();
+        private static readonly Dictionary<Exiled.API.Enums.RoomType, string> _roomCache = new Dictionary<Exiled.API.Enums.RoomType, string>();
         public BasicPlayerModule()
         {
             
@@ -36,10 +39,37 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
             else
             {
-                hasKeycard = _player.Items.Any(i => ModuleUtils.IsKeycard(i.Type));
+                foreach (var item in _player.Items)
+                {
+                    if (ModuleUtils.IsKeycard(item.Type))
+                    {
+                        hasKeycard = true;
+                        break; // Cortamos el bucle al encontrarla
+                    }
+                }
                 playerTier = ModuleUtils.GetBestKeycardTier(_player); 
             }
+            string zoneStr = "Unknown";
+            if (_player.CurrentRoom != null)
+            {
+                var zone = _player.CurrentRoom.Zone;
+                if (!_zoneCache.TryGetValue(zone, out zoneStr))
+                {
+                    zoneStr = zone.ToString();
+                    _zoneCache[zone] = zoneStr;
+                }
+            }
 
+            string roomStr = "Unknown";
+            if (_player.CurrentRoom != null)
+            {
+                var rType = _player.CurrentRoom.Type;
+                if (!_roomCache.TryGetValue(rType, out roomStr))
+                {
+                    roomStr = rType.ToString();
+                    _roomCache[rType] = roomStr;
+                }
+            }
 
             Vector3 relativePos = _player.Position - ctx.Center;
 
@@ -64,8 +94,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             obs.Yaw         = camara.y;
             obs.Pitch       = camara.x;
             obs.Health      = _player.Health / _player.MaxHealth;
-            obs.Zone        = _player.CurrentRoom?.Zone.ToString() ?? "Unknown";
-            obs.Room        = _player.CurrentRoom?.Type.ToString() ?? "Unknown";
+            obs.Zone        = zoneStr;
+            obs.Room        = roomStr;
             obs.HasKeycard  = hasKeycard;
             obs.KeycardTier = playerTier;
             obs.LastAction  = ctx.LastAction;

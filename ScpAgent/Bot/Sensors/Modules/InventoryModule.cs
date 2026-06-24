@@ -32,8 +32,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             if (_player == null || !_player.IsAlive) return;
 
             var itemEquipado = _player.CurrentItem;
+            
             int slotIndex = 0;
-
             foreach (var item in _player.Items)
             {
                 if (slotIndex >= 8) break;

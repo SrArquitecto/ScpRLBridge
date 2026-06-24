@@ -4,7 +4,7 @@ using Exiled.API.Features;
 using MEC;
 using ScpAgent.Network;
 using ScpAgent.Managers;
-
+using UnityEngine;
 
 namespace ScpAgent
 {
@@ -38,7 +38,12 @@ namespace ScpAgent
             
             RoundManager = new RoundManager(this);
             
-            
+            for (int i = 0; i < 32; i++)
+            {
+                string name = LayerMask.LayerToName(i);
+                if (!string.IsNullOrEmpty(name))
+                    Log.Info($"[Layers] Layer {i}: '{name}'");
+            }
             // 2. INICIALIZACIÓN DE LA RED
             // Instanciamos el servidor TCP y lo encendemos en el puerto configurado
             
@@ -69,6 +74,8 @@ namespace ScpAgent
             {
                 RoundManager.Unsubscribe();
             }
+
+
 
             // 4. LIMPIEZA DE MEMORIA E INSTANCIAS
             Instance = null;

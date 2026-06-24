@@ -15,12 +15,12 @@ namespace ScpAgent.Managers.Data
 {
     public class AgentSlot
     {
-        public  int              AgentId;
+        public  int AgentId;
         public  IAgentController Bot;
         public RoleTypeId Rol;
         public IAgentRoleStrategyBase Strategy;
-        public ISensors     Sensors;
-        public  FakeConnection   FakeConnection;
+        public ISensors Sensors;
+        public  FakeConnection FakeConnection;
 
         // true cuando ExiledPlayer es válido y el bot puede recibir acciones
         public bool IsReady { get; private set; }
@@ -58,12 +58,13 @@ namespace ScpAgent.Managers.Data
         /// Vincula los sensores al nuevo Player wrapper y marca el slot como listo.
         /// </summary>
         public void OnSpawnComplete(Player exiledPlayer)
-        {
+        {   
+            Log.Info("OnSpawnComplete");
             Reset();
-            Bot.SetPlayer(exiledPlayer);
+            //Bot.SetPlayer(exiledPlayer);
             Bot.ResetearPosicionInicial(exiledPlayer.Position);
             Sensors.VincularPlayer(exiledPlayer);
-            (Bot as ScpAgentBot)?.SetSensores(Sensors);
+            (Bot as ScpAgentBot)._sensores = Sensors;
             IsReady = true;
         }
 

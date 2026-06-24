@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
-    public class WhiskersModule : ISensorModule
+    public class WhiskersModule2 : ISensorModule
     {
         private Player _player;
         private const float WHISKER_RANGE = 2.5f;   // metros — rango corto, solo obstáculos inmediatos
@@ -12,7 +12,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         private static readonly float[] WHISKER_ANGLES = { 0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f };
         private readonly RaycastHit[] _whiskerBuffer = new RaycastHit[1];
 
-        public WhiskersModule()
+        public WhiskersModule2()
         {
             
         }

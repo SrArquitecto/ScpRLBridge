@@ -509,24 +509,24 @@ namespace ScpAgent.Network
             try {
                 try
                 {
-                    if (bot.ExiledPlayer == null || 
-                        !bot.ExiledPlayer.IsAlive || 
-                        bot.ExiledPlayer.GameObject == null)
+                    if (bot._exiledPlayer == null || 
+                        !bot._exiledPlayer.IsAlive || 
+                        bot._exiledPlayer.GameObject == null)
                     {
-                        _EnviarObservacionVacia(agentId, bot.ExiledPlayer.Role.Type);
+                        _EnviarObservacionVacia(agentId, bot._exiledPlayer.Role.Type);
                         return;
                     }
                 }
                 catch
                 {
-                    _EnviarObservacionVacia(agentId, bot.ExiledPlayer.Role.Type);
+                    _EnviarObservacionVacia(agentId, bot._exiledPlayer.Role.Type);
                     return;
                 }
                 if (msg == "RESPAWN")
                 {
                     bot.EjecutarRespawn();
                     // Responder con estado vacío mientras el respawn se completa
-                    _EnviarObservacionVacia(agentId, bot.ExiledPlayer.Role.Type);
+                    _EnviarObservacionVacia(agentId, bot._exiledPlayer.Role.Type);
                     return;
                 }
 
@@ -540,6 +540,7 @@ namespace ScpAgent.Network
                 else if (msg == "GET_STATE")
                 {
                     // NOOP — solo devolver estado actual sin mover
+                    Log.Info("GET_STATE");
                 }
                 else
                 {
@@ -562,7 +563,7 @@ namespace ScpAgent.Network
         private void _EnviarObservacion(IAgentController bot, int agentId, float deltaTime)
         {
             AgentObservation obs = bot.GetObservation(deltaTime);
-            string json = JsonUtils.ToJson(obs, bot.ExiledPlayer.Role.Type);
+            string json = JsonUtils.ToJson(obs, bot._exiledPlayer.Role.Type);
             if (_frameCount % 500 == 0)
                 Log.Info($"[Perf] JSON size Agente {agentId}: {json.Length} chars");
             

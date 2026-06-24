@@ -41,7 +41,7 @@ namespace ScpAgent.Bot.Sensors
             halfZ = Vector3.one.z * 10f,
         };
 
-       
+       private readonly SensorContext _ctxCache = new SensorContext();
         //ESTRATEGIAS:
         protected Func<ItemType, float> _fnPrioridad;
         protected Func<ItemType, string> _fnCategoria;
@@ -123,24 +123,30 @@ namespace ScpAgent.Bot.Sensors
             SensorContext ctx = _BuildContext(delta, reward, accionAnterior, data, done);
 
             foreach (var module in _modules)
+            {
+                long antes = GC.GetTotalMemory(false);
                 module.Actualizar(obs, ctx);
+                long despues = GC.GetTotalMemory(false);
+                long diff = despues - antes;
+                if (diff > 1024) // más de 1KB generado por un solo módulo en un tick
+                    Log.Warn($"[GC] Módulo {module.GetType().Name} generó {diff/1024}KB");
+            }
+
 
             return obs;
         }
 
         private SensorContext _BuildContext(float deltaTime, float reward, int lastAction, AgentCacheData data, bool done)
         {
-            return new SensorContext
-            {
-                HalfX       = data.halfX,
-                HalfY       = data.halfY,
-                HalfZ       = data.halfZ,
-                Center      = data.center,
-                Delta       = deltaTime,
-                Reward      = reward,
-                LastAction  = lastAction,
-                Done        = done
-            };
+            _ctxCache.HalfX       = data.halfX;
+            _ctxCache.HalfY       = data.halfY;
+            _ctxCache.HalfZ       = data.halfZ;
+            _ctxCache.Center      = data.center;
+            _ctxCache.Delta       = deltaTime;
+            _ctxCache.Reward      = reward;
+            _ctxCache.LastAction  = lastAction; 
+            _ctxCache.Done        = done;
+            return _ctxCache;
         }
         
         public void MarcarRoomDescubierta(Room sala)
@@ -164,6 +170,7 @@ namespace ScpAgent.Bot.Sensors
 
         public virtual void ResetEstado()
         {
+            _obsCache.Clear();
             BaseSensors.agentCacheData.Clear();
             foreach (var m in _modules) m.Reset();
         }

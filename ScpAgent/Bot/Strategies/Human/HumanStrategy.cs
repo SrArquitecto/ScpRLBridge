@@ -8,13 +8,38 @@ using ScpAgent.Bot.Strategies;
 using ScpAgent.Bot.Interfaces;
 using ScpAgent.Bot.Strategies.Interfaces;
 using System.Runtime.InteropServices.ComTypes;
+using InventorySystem.Items.Thirdperson;
 
 namespace ScpAgent.Bot.Strategies.Human
 {
     public abstract class HumanStrategy : BaseStrategy, IAgentRoleStrategyHuman
     {
+        
         public HumanStrategy(RoleTypeId role) : base(role)
         {
+        }
+
+        public override void InicializarMovimiento(GameObject go, CharacterController cc)
+        {
+                if (go == null)
+                {
+                    Log.Error("GameObject nulo");
+                    return;
+                }
+
+                if (cc == null)
+                {
+                    Log.Error("CharacterController nulo");
+                    return;
+                }
+
+            _movimiento = new BotMovement(_ctx.AgentId);
+            _movimiento.Inicializar(go, cc);
+        }
+
+        public override void ActualizarFisica(float deltaTime, Player player, int accion, GameObject go)
+        {
+            _movimiento?.Ejecutar(accion, deltaTime, player, go);
         }
 
         public abstract float CalcularPrioridadItem(ItemType tipo);

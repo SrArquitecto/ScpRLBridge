@@ -17,7 +17,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         private const float TIEMPO_OLVIDO = 45f;
         private const int UPDATE_FREQUENCY = 20;
         private int _frameCounter = UPDATE_FREQUENCY;
-        protected readonly DoorData[]     _doorPool    = new DoorData[15];
+        protected readonly DoorData[]     _doorPool    = new DoorData[5];
         private List<Door> _cachedDoors;
         private Dictionary<int, string> _doorColliderCache = new Dictionary<int, string>();
         private List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();  
@@ -25,6 +25,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         private readonly VisualMemory <ObjectMemoryDoor> _memoriaPuertas  = new VisualMemory<ObjectMemoryDoor>(TIEMPO_OLVIDO);
         private static readonly Comparison<(Door d, float dist)> _doorComparison = (a, b) => a.dist.CompareTo(b.dist);
 
+        private static readonly Dictionary<Interactables.Interobjects.DoorUtils.DoorPermissionFlags, string> _permCache = new Dictionary<Interactables.Interobjects.DoorUtils.DoorPermissionFlags, string>();
         public DoorsModule()
         {
             for (int i = 0; i < _doorPool.Length;    i++) 
@@ -80,6 +81,7 @@ namespace ScpAgent.Bot.Sensors.Modules
 
             // ── 1. Filtrar por rango y comprobar visibilidad real ────────────────
             _doorsConDist.Clear();
+            var allDoors = Door.List;
             foreach (var d in _cachedDoors)
             {
                 if (d == null) continue;
@@ -126,11 +128,16 @@ namespace ScpAgent.Bot.Sensors.Modules
                         if (valid != null) colliderName = valid.name;
                         _doorColliderCache[doorId] = colliderName;
                     }
+                    if (!_permCache.TryGetValue(d.RequiredPermissions, out string permStr))
+                    {
+                        permStr = d.RequiredPermissions.ToString();
+                        _permCache[d.RequiredPermissions] = permStr;
+                    }
 
                     int reqTier = ModuleUtils.GetDoorRequiredTier(d);
 
                     var dd = _doorPool[doorCount];
-                    dd.Type         = d.RequiredPermissions.ToString();
+                    dd.Type         = permStr;
                     dd.Name         = d.Name;
                     dd.ColliderName = colliderName;
                     dd.Distance     = dist / 50f;
@@ -180,11 +187,17 @@ namespace ScpAgent.Bot.Sensors.Modules
                         if (valid != null) colliderName = valid.name;
                         _doorColliderCache[doorId] = colliderName;
                     }
+                    if (!_permCache.TryGetValue(doorRef.RequiredPermissions, out string permStr))
+                    {
+                        permStr = doorRef.RequiredPermissions.ToString();
+                        _permCache[doorRef.RequiredPermissions] = permStr;
+                    }
                     int reqTier = ModuleUtils.GetDoorRequiredTier(doorRef);
-                    dd.Type         = doorRef.RequiredPermissions.ToString();; // no tenemos el wrapper Door a mano, solo posición
+                    dd.Type         = permStr; // no tenemos el wrapper Door a mano, solo posición
                     dd.Name         = doorRef.Name;
                     dd.ColliderName = colliderName;
                     dd.CanOpen      = playerTier >= reqTier;
+                    dd.RequiredTier = ModuleUtils.GetDoorRequiredTier(doorRef);
                 }
                 else
                 {
@@ -198,7 +211,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 }
                 
                 dd.Distance     = dist / 50f;
-                dd.RequiredTier = 0;
+                
                 
                 dd.IsOpen       = mem.PuertaAbierta; // último estado conocido
                 dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;

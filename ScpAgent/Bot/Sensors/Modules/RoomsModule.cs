@@ -19,6 +19,8 @@ namespace ScpAgent.Bot.Sensors.Modules
         private const int UPDATE_FREQUENCY = 20;
         private int _frameCounter = UPDATE_FREQUENCY;
         private readonly RoomData[]     _roomPool    = new RoomData[5];
+        private readonly Habitaciones[] _habitacionesPool = new Habitaciones[250];
+        private static readonly Dictionary<RoomType, string> _nombresSalasCache = new Dictionary<RoomType, string>();
         public List<Room> _cachedRooms { get; set; } = new List<Room>();
         private readonly HashSet<int> _roomsDescubiertas = new HashSet<int>();
         private List<RoomData> _cachedNearRooms { get; set; } = new List<RoomData>();
@@ -30,6 +32,8 @@ namespace ScpAgent.Bot.Sensors.Modules
         {
             for (int i = 0; i < _roomPool.Length;    i++) 
                 _roomPool[i]    = new RoomData();
+            for (int i = 0; i < _habitacionesPool.Length; i++)
+                _habitacionesPool[i] = new Habitaciones();
         }
         public void VincularPlayer(Player player)
         {
@@ -51,7 +55,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _CopiarACacheHabitaciones(obs);
                 return;
             }
-
+            _frameCounter = 0;
             _cachedNearRooms.Clear();
             obs.NearRooms.Clear();
             try { _CargarRooms(ModuleUtils.GetBestKeycardTier(_player)); }
@@ -106,6 +110,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         {
             //List<Habitaciones> listaPriorizada = new List<Habitaciones>();
             if (_player == null || _player.Transform == null) return;
+            int poolIndex = 0;
 
             foreach (Room sala in _cachedRooms)
             {
@@ -170,23 +175,30 @@ namespace ScpAgent.Bot.Sensors.Modules
                 float salaNormY = Mathf.Clamp(sala.Position.y / RANGO_MAPA, -1f, 1f); // Altura (LCZ vs HCZ)
                 float salaNormZ = Mathf.Clamp(sala.Position.z / RANGO_MAPA, -1f, 1f);
 
-                _roomsPriorizada.Add(new Habitaciones
+                if (!_nombresSalasCache.TryGetValue(sala.Type, out string nombreSala))
                 {
-                    RoomInstanceId = sala.GameObject.GetInstanceID(),
-                    NombreHabitacion = sala.Type.ToString(),
-                    IdHabitacion = (int)sala.Type,
-                    PosicionReal = sala.Position,
-                    PosicionNormX = dirNormalizada.x,
-                    PosicionNormY = dirNormalizada.y,
-                    PosicionNormZ = dirNormalizada.z,
-                    PosicionUbiX = salaNormX,
-                    PosicionUbiY = salaNormY,
-                    PosicionUbiZ = salaNormZ,
-                    Prioridad = prioridad/200f,
-                    Distancia = distancia,
-                    DistanciaNormalizada = distNormalizada
-                });
+                    nombreSala = sala.Type.ToString();
+                    _nombresSalasCache[sala.Type] = nombreSala;
+                }
+                if (poolIndex >= _habitacionesPool.Length) break; // Seguridad
+                
+                var hab = _habitacionesPool[poolIndex];
+                hab.RoomInstanceId = sala.GameObject.GetInstanceID();
+                hab.NombreHabitacion = nombreSala;
+                hab.IdHabitacion = (int)sala.Type;
+                hab.PosicionReal = sala.Position;
+                hab.PosicionNormX = dirNormalizada.x;
+                hab.PosicionNormY = dirNormalizada.y;
+                hab.PosicionNormZ = dirNormalizada.z;
+                hab.PosicionUbiX = salaNormX;
+                hab.PosicionUbiY = salaNormY;
+                hab.PosicionUbiZ = salaNormZ;
+                hab.Prioridad = prioridad / 200f;
+                hab.Distancia = distancia;
+                hab.DistanciaNormalizada = distNormalizada;
 
+                _roomsPriorizada.Add(hab);
+                poolIndex++;
             }
 
             _roomsPriorizada.Sort(_roomComparison);
