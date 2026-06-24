@@ -23,7 +23,8 @@ namespace ScpAgent.Bot.Sensors.Modules
         private List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();  
         protected readonly List<(Door d, float dist)> _doorsConDist = new List<(Door d, float dist)>(50);
         private readonly VisualMemory <ObjectMemoryDoor> _memoriaPuertas  = new VisualMemory<ObjectMemoryDoor>(TIEMPO_OLVIDO);
-        private static readonly Comparison<(Door d, float dist)> _doorComparison = (a, b) => a.dist.CompareTo(b.dist);
+        private static readonly IComparer<(Door d, float dist)> _doorComparerInstance = 
+            Comparer<(Door d, float dist)>.Create((a, b) => a.dist.CompareTo(b.dist));
 
         private static readonly Dictionary<Interactables.Interobjects.DoorUtils.DoorPermissionFlags, string> _permCache = new Dictionary<Interactables.Interobjects.DoorUtils.DoorPermissionFlags, string>();
         public DoorsModule()
@@ -106,7 +107,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 }
                 catch { continue; }
             }
-            _doorsConDist.Sort(_doorComparison);
+            _doorsConDist.Sort(_doorComparerInstance);
 
             // ── 2. Volcar puertas VISTAS AHORA al pool ────────────────────────────
             int doorCount = 0;

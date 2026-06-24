@@ -186,7 +186,7 @@ namespace ScpAgent.Managers
             // Apagamos el bucle central de control TCP inmediatamente para evitar lecturas fantasmas
             _plugin.ControlServer.DetenerEntrenamiento();
             AgentManager.Instance.ResetearTodos(); 
-            System.GC.Collect();
+            //System.GC.Collect();
             Log.Debug("[RoundManager] Solicitando restablecimiento completo del mapa a EXILED...");
             Round.Restart(false, true);
         }

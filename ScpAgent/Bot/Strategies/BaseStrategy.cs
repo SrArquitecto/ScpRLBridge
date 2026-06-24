@@ -8,12 +8,12 @@ namespace ScpAgent.Bot.Strategies
 {
     public abstract class BaseStrategy : IAgentRoleStrategyBase
     {
-        protected BotMovement _movimiento;
+        protected BotMovement _movimiento = null;
         protected readonly HashSet<int> _salasVisitadas = new HashSet<int>();
         public RoleTypeId Role { get; }
         protected AgentContext _ctx;
-
-    
+        protected bool _isSubscribed = false;
+        public static int TotalEventosSuscritos { get; set; } = 0;
         public BaseStrategy(RoleTypeId role) 
         {
             Role = role;

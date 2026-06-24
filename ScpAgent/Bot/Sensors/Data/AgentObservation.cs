@@ -38,7 +38,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public int KeycardTier { get; set; }
 
 
-        public List<InventoryItemData> Inventory { get; set; } = new List<InventoryItemData>();
+        public List<InventoryItemData> Inventory { get; set; } = new List<InventoryItemData>(32);
         public int   InventorySlots  { get; set; } // slots libres (max 8)
             // Munición en reserva por tipo — separada del inventario
         public int   Ammo9x19        { get; set; }
@@ -50,12 +50,12 @@ namespace ScpAgent.Bot.Sensors.Data
 
 
         // Listas de Entorno Cercano
-        public List<ItemData> NearItems { get; set; } = new List<ItemData>();
-        public List<DoorData> NearDoors { get; set; } = new List<DoorData>();
-        public List<LiftData> NearLifts { get; set; } = new List<LiftData>();
-        public List<LockerData> NearLockers { get; set; } = new List<LockerData>();
-        public List<RoomData> NearRooms { get; set; } = new List<RoomData>();
-        public List<ActorData> NearPlayers { get; set; } = new List<ActorData>();
+        public List<ItemData> NearItems { get; set; } = new List<ItemData>(32);
+        public List<DoorData> NearDoors { get; set; } = new List<DoorData>(32);
+        public List<LiftData> NearLifts { get; set; } = new List<LiftData>(32);
+        public List<LockerData> NearLockers { get; set; } = new List<LockerData>(32);
+        public List<RoomData> NearRooms { get; set; } = new List<RoomData>(32);
+        public List<ActorData> NearPlayers { get; set; } = new List<ActorData>(32);
 
         public int TotalRooms => NearRooms.Count;
 

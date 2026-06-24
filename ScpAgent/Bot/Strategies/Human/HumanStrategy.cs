@@ -17,6 +17,7 @@ namespace ScpAgent.Bot.Strategies.Human
         
         public HumanStrategy(RoleTypeId role) : base(role)
         {
+            
         }
 
         public override void InicializarMovimiento(GameObject go, CharacterController cc)
@@ -47,6 +48,9 @@ namespace ScpAgent.Bot.Strategies.Human
         public override void OnBind(AgentContext ctx)
         {
             base.OnBind(ctx);
+            if (_isSubscribed) return;
+            if (_movimiento == null)
+                _movimiento = new BotMovement(_ctx.AgentId);
 
             // ── SUSCRIPCIÓN DE EVENTOS (Lógica de Recompensas) ──
             Exiled.Events.Handlers.Player.Escaping            += OnEscaping;
@@ -61,12 +65,15 @@ namespace ScpAgent.Bot.Strategies.Human
             
             Exiled.Events.Handlers.Player.InteractingLocker   += OnInteractingLocker;
             
+            _isSubscribed = true;
+            BaseStrategy.TotalEventosSuscritos += 6;
             
         }
 
         public override void OnUnbind()
         {
             base.OnUnbind();
+            if (!_isSubscribed) return;
             // ── LIMPIEZA OBLIGATORIA (Evita los eventos zombies que bajan los it/s) ──
             Exiled.Events.Handlers.Player.Escaping            -= OnEscaping;
             
@@ -80,6 +87,8 @@ namespace ScpAgent.Bot.Strategies.Human
             
             Exiled.Events.Handlers.Player.InteractingLocker   -= OnInteractingLocker;
             
+            _isSubscribed = false;
+            BaseStrategy.TotalEventosSuscritos -= 6;
         }
 
         public override void EjecutarAccionEspecial(int actionId, float deltaTime)

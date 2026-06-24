@@ -118,18 +118,25 @@ namespace ScpAgent.Bot.Sensors
 
             Vector3 pos         = _player.Position;
             Vector3 camRotation = _player.CameraTransform.rotation.eulerAngles;
+            _obsCache.Clear();
             var obs = _obsCache;
             var data = GetData();
             SensorContext ctx = _BuildContext(delta, reward, accionAnterior, data, done);
 
             foreach (var module in _modules)
             {
-                long antes = GC.GetTotalMemory(false);
+                // Mide los bytes asignados exclusivamente por ESTE hilo
+                long antes = GC.GetAllocatedBytesForCurrentThread();
+                
                 module.Actualizar(obs, ctx);
-                long despues = GC.GetTotalMemory(false);
+                
+                long despues = GC.GetAllocatedBytesForCurrentThread();
                 long diff = despues - antes;
-                if (diff > 1024) // más de 1KB generado por un solo módulo en un tick
-                    Log.Warn($"[GC] Módulo {module.GetType().Name} generó {diff/1024}KB");
+                
+                if (diff > 0) // Ahora sí verás los bytes reales exactos (ej. 24B, 64B...)
+                {
+                    Log.Warn($"[GC REAL] Módulo {module.GetType().Name} generó {diff} bytes.");
+                }
             }
 
 

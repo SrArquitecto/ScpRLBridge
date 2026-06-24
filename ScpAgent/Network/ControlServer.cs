@@ -18,6 +18,8 @@ using ScpAgent.Bot.Sensors;
 using ScpAgent.Network.Event;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Data;
+using ScpAgent.Bot.Strategies;
+using ScpAgent.Bot;
 
 namespace ScpAgent.Network
 {
@@ -472,6 +474,8 @@ namespace ScpAgent.Network
                             $"FixedDelta={UnityEngine.Time.fixedDeltaTime*1000f:F1}ms");
                 
                     Log.Info($"[Perf] Mirror connections: {Mirror.NetworkServer.connections.Count}");
+                    Log.Info($"[Perf] EventosVivis: {BotEvents.TotalEventosSuscritos + BaseStrategy.TotalEventosSuscritos}");
+                    Log.Info($"[Perf] Total Jugadores: {ReferenceHub.AllHubs.Count - 1}");
                     //_frameCount = 0;
                 }
 
@@ -540,7 +544,7 @@ namespace ScpAgent.Network
                 else if (msg == "GET_STATE")
                 {
                     // NOOP — solo devolver estado actual sin mover
-                    Log.Info("GET_STATE");
+                    //Log.Info("GET_STATE");
                 }
                 else
                 {

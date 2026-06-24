@@ -9,6 +9,8 @@ namespace ScpAgent.Bot
     public class BotEvents
     {
         private readonly ScpAgentBot _bot;
+        private bool _isSubscribed = false;
+        public static int TotalEventosSuscritos { get; private set; } = 0;
         public BotEvents(ScpAgentBot bot)
         {
             _bot = bot;
@@ -16,13 +18,19 @@ namespace ScpAgent.Bot
 
         public void SuscribirEventos()
         {
+            if (_isSubscribed) return;
             Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
             Exiled.Events.Handlers.Player.Hurting             += OnHurt;
+            _isSubscribed = true;
+            BotEvents.TotalEventosSuscritos += 2;
         }
         public void DesuscribirEventos()
         {
+            if (!_isSubscribed) return;
             Exiled.Events.Handlers.Player.RoomChanged         -= OnRoomChanged;
             Exiled.Events.Handlers.Player.Hurting             -= OnHurt;
+            _isSubscribed = false;
+            BotEvents.TotalEventosSuscritos -= 2;
         }
 
         public void OnRoomChanged(RoomChangedEventArgs ev)

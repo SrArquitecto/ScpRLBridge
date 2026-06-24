@@ -25,9 +25,10 @@ namespace ScpAgent.Bot.Sensors.Modules
         private readonly HashSet<int> _roomsDescubiertas = new HashSet<int>();
         private List<RoomData> _cachedNearRooms { get; set; } = new List<RoomData>();
         private readonly List<Habitaciones> _roomsPriorizada = new List<Habitaciones>(250);
-        private static readonly Comparison<Habitaciones> _roomComparison = 
-            (a, b) => b.Prioridad.CompareTo(a.Prioridad) == 0 ? a.Distancia.CompareTo(b.Distancia) : b.Prioridad.CompareTo(a.Prioridad);
-
+        private static readonly IComparer<Habitaciones> _roomComparerInstance = 
+            Comparer<Habitaciones>.Create((a, b) => b.Prioridad.CompareTo(a.Prioridad) == 0 
+                ? a.Distancia.CompareTo(b.Distancia) 
+                : b.Prioridad.CompareTo(a.Prioridad));
         public RoomsModule()
         {
             for (int i = 0; i < _roomPool.Length;    i++) 
@@ -201,7 +202,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 poolIndex++;
             }
 
-            _roomsPriorizada.Sort(_roomComparison);
+            _roomsPriorizada.Sort(_roomComparerInstance);
         }
         private void _CopiarACacheHabitaciones(AgentObservation obs)
         {

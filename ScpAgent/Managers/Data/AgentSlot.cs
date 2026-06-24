@@ -59,7 +59,7 @@ namespace ScpAgent.Managers.Data
         /// </summary>
         public void OnSpawnComplete(Player exiledPlayer)
         {   
-            Log.Info("OnSpawnComplete");
+            //Log.Info("OnSpawnComplete");
             Reset();
             //Bot.SetPlayer(exiledPlayer);
             Bot.ResetearPosicionInicial(exiledPlayer.Position);
