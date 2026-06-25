@@ -182,8 +182,9 @@ namespace ScpAgent.Bot
         }
 
         public void ResetEstado()
-        {   
-            BaseSensors.agentCacheData.Clear();
+        {
+            if (_exiledPlayer != null)
+                BaseSensors.agentCacheData.Remove(_exiledPlayer.Id);
             _firstRespawn = true;
             // ── Estado de acción ────────────────────────────────────────────
             _ultimaAccion   = 12; // NOOP
@@ -208,13 +209,23 @@ namespace ScpAgent.Bot
 
         public void Destruir()
         {
-            // 1. Apagar los eventos para que no consuman CPU
-            _sensores = null;
-            // 4. Destruir el objeto físico en Unity
-            _spawner.Destruir();
-            _events.DesuscribirEventos();
-            Log.Debug($"[ScpAgentBot] Agente {_agentId} destruido y memoria liberada.");
+            _strategy?.OnUnbind();
+            _strategy = null;
 
+            _events?.DesuscribirEventos();
+            _events = null;
+
+            _spawner?.Destruir();
+            _spawner = null;
+
+            _fakeConn = null;
+            _botGameObject = null;
+            _cc = null;
+            _exiledPlayer = null;
+            _ctx = null;
+            _sensores = null;
+
+            Log.Debug($"[ScpAgentBot] Agente {_agentId} destruido y memoria liberada.");
         }
 
         // ───────────────────────────────────────────────────────────────────────

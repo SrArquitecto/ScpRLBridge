@@ -4,7 +4,6 @@ using ScpAgent.Bot.Sensors.Data;
 using UnityEngine;
 using System.Collections.Generic;
 using System;
-using System.Linq;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
@@ -33,6 +32,7 @@ namespace ScpAgent.Bot.Sensors.Modules
     {
         private const int   GRAPH_SIZE    = 16;
         private const int   MAX_BFS_DEPTH = 2;
+        private const int   BFS_BUFFER    = 64;
         private const float RANGO_MAPA    = 500f;
 
         private struct BfsEntry
@@ -41,24 +41,49 @@ namespace ScpAgent.Bot.Sensors.Modules
             public int Depth;
         }
 
+        private struct ScoredNode
+        {
+            public RoomNode Node;
+            public float Score;
+        }
+
+        private static readonly Comparer<ScoredNode> _scoreDescComparer =
+            Comparer<ScoredNode>.Create((a, b) => b.Score.CompareTo(a.Score));
+
         private Player _player;
         private readonly Dictionary<int, RoomNode> _nodes = new Dictionary<int, RoomNode>();
         private int _currentRoomId = 0;
+
+        private readonly BfsEntry[]          _bfsBuffer      = new BfsEntry[BFS_BUFFER];
+        private readonly ScoredNode[]        _scoredBuffer   = new ScoredNode[BFS_BUFFER];
+        private readonly RoomNode[]          _selectedBuffer = new RoomNode[GRAPH_SIZE];
+        private readonly int[]               _bfsIds         = new int[BFS_BUFFER];
+        private readonly int[]               _bfsDepths      = new int[BFS_BUFFER];
+        private int _bfsHead;
+        private int _bfsTail;
+
+        private readonly HashSet<int>          _bfsVisited    = new HashSet<int>(BFS_BUFFER);
+        private readonly Dictionary<int, int>  _idToIndex     = new Dictionary<int, int>(GRAPH_SIZE);
+        private readonly HashSet<int>          _salasEnemigos = new HashSet<int>();
+        private readonly HashSet<int>          _salasLoot     = new HashSet<int>();
+        private readonly HashSet<int>          _salasPuerta   = new HashSet<int>();
 
         public IReadOnlyDictionary<int, RoomNode> Nodes => _nodes;
         public int CurrentRoomId => _currentRoomId;
 
         public RoomsGraphModule() { }
 
-        public void VincularPlayer(Player player)
-        {
-            _player = player;
-        }
+        public void VincularPlayer(Player player) => _player = player;
 
         public void Reset()
         {
             _nodes.Clear();
             _currentRoomId = 0;
+            _bfsVisited.Clear();
+            _idToIndex.Clear();
+            _salasEnemigos.Clear();
+            _salasLoot.Clear();
+            _salasPuerta.Clear();
         }
 
         public void Actualizar(AgentObservation obs, SensorContext ctx)
@@ -68,16 +93,15 @@ namespace ScpAgent.Bot.Sensors.Modules
             Vector3 playerPos = _player.Position;
             int playerTier    = ModuleUtils.GetBestKeycardTier(_player);
 
-            List<BfsEntry> bfs = BfsLocalSubgraph(MAX_BFS_DEPTH);
+            int bfsCount      = BfsLocalSubgraph(MAX_BFS_DEPTH);
+            int selectedCount = SelectTopK(bfsCount, playerPos, GRAPH_SIZE, _selectedBuffer);
 
-            List<RoomNode> selected = SelectTopK(bfs, playerPos, GRAPH_SIZE);
+            _idToIndex.Clear();
+            for (int i = 0; i < selectedCount; i++)
+                _idToIndex[_selectedBuffer[i].Id] = i;
 
-            Dictionary<int, int> idToIndex = new Dictionary<int, int>(selected.Count);
-            for (int i = 0; i < selected.Count; i++)
-                idToIndex[selected[i].Id] = i;
-
-            FillObservation(obs, selected, playerPos, playerTier);
-            FillGraphTopology(obs, selected, idToIndex);
+            FillObservation(obs, selectedCount, playerPos, playerTier);
+            FillGraphTopology(obs, selectedCount);
         }
 
         public bool RegistrarTransicion(Room oldRoom, Room newRoom)
@@ -120,64 +144,85 @@ namespace ScpAgent.Bot.Sensors.Modules
 
         public int TotalSalasDescubiertas() => _nodes.Count;
 
-        private List<BfsEntry> BfsLocalSubgraph(int maxDepth)
+        private int BfsLocalSubgraph(int maxDepth)
         {
-            var result = new List<BfsEntry>();
-            if (!_nodes.TryGetValue(_currentRoomId, out var startNode))
-                return result;
+            if (!_nodes.TryGetValue(_currentRoomId, out _))
+                return 0;
 
-            var visited = new HashSet<int> { _currentRoomId };
-            var queue   = new Queue<(int id, int depth)>();
-            queue.Enqueue((_currentRoomId, 0));
+            _bfsVisited.Clear();
+            _bfsVisited.Add(_currentRoomId);
 
-            while (queue.Count > 0)
+            _bfsHead = 0;
+            _bfsTail = 0;
+            _bfsIds[_bfsTail]    = _currentRoomId;
+            _bfsDepths[_bfsTail] = 0;
+            _bfsTail++;
+
+            int count = 0;
+
+            while (_bfsHead < _bfsTail)
             {
-                var (id, depth) = queue.Dequeue();
-                if (!_nodes.TryGetValue(id, out var node)) continue;
+                int id    = _bfsIds[_bfsHead];
+                int depth = _bfsDepths[_bfsHead];
+                _bfsHead++;
 
-                result.Add(new BfsEntry { Node = node, Depth = depth });
+                if (!_nodes.TryGetValue(id, out var node)) continue;
+                if (count >= BFS_BUFFER) break;
+
+                _bfsBuffer[count].Node  = node;
+                _bfsBuffer[count].Depth = depth;
+                count++;
 
                 if (depth >= maxDepth) continue;
 
-                foreach (var neighborId in node.ConnectedRoomIds)
+                var neighbors = node.ConnectedRoomIds;
+                foreach (var neighborId in neighbors)
                 {
-                    if (!visited.Add(neighborId)) continue;
-                    queue.Enqueue((neighborId, depth + 1));
+                    if (!_bfsVisited.Add(neighborId)) continue;
+                    if (_bfsTail >= BFS_BUFFER) break;
+                    _bfsIds[_bfsTail]    = neighborId;
+                    _bfsDepths[_bfsTail] = depth + 1;
+                    _bfsTail++;
                 }
             }
-            return result;
+            return count;
         }
 
-        private List<RoomNode> SelectTopK(List<BfsEntry> bfs, Vector3 playerPos, int k)
+        private int SelectTopK(int bfsCount, Vector3 playerPos, int k, RoomNode[] outBuffer)
         {
-            return bfs
-                .Select(e => new
-                {
-                    Node  = e.Node,
-                    Score = e.Node.Priority / (1f + Vector3.Distance(e.Node.Position, playerPos))
-                })
-                .OrderByDescending(x => x.Score)
-                .Take(k)
-                .Select(x => x.Node)
-                .ToList();
+            for (int i = 0; i < bfsCount; i++)
+            {
+                var node = _bfsBuffer[i].Node;
+                float dist = Vector3.Distance(node.Position, playerPos);
+                _scoredBuffer[i].Node  = node;
+                _scoredBuffer[i].Score = node.Priority / (1f + dist);
+            }
+
+            Array.Sort(_scoredBuffer, 0, bfsCount, _scoreDescComparer);
+
+            int count = Math.Min(k, bfsCount);
+            for (int i = 0; i < count; i++)
+                outBuffer[i] = _scoredBuffer[i].Node;
+
+            return count;
         }
 
         private void FillObservation(AgentObservation obs,
-                                     List<RoomNode> selected,
+                                     int selectedCount,
                                      Vector3 playerPos,
                                      int playerTier)
         {
             obs.GraphNodes.Clear();
 
-            HashSet<int> salasConEnemigos = ObtenerSalasConEnemigos(obs, playerPos);
-            HashSet<int> salasConLoot     = ObtenerSalasConLootValioso(obs, playerPos);
-            HashSet<int> salasPuertaBloq  = ObtenerSalasPuertaBloqueada(obs, playerPos);
+            ObtenerSalasConEnemigos(obs, playerPos);
+            ObtenerSalasConLootValioso(obs, playerPos);
+            ObtenerSalasPuertaBloqueada(obs, playerPos);
 
             for (int i = 0; i < GRAPH_SIZE; i++)
             {
-                if (i < selected.Count)
+                if (i < selectedCount)
                 {
-                    var node = selected[i];
+                    var node = _selectedBuffer[i];
                     float dist = Vector3.Distance(node.Position, playerPos);
 
                     obs.GraphNodes.Add(new GraphNodeData
@@ -196,9 +241,9 @@ namespace ScpAgent.Bot.Sensors.Modules
                         VisitCount   = node.VisitCount,
                         Antiguedad   = Time.time - node.LastTimeVisited,
                         EsActual     = (node.Id == _currentRoomId) ? 1f : 0f,
-                        TieneEnemigo = salasConEnemigos.Contains(node.Id) ? 1f : 0f,
-                        TieneLoot    = salasConLoot.Contains(node.Id) ? 1f : 0f,
-                        PuertaBloq   = salasPuertaBloq.Contains(node.Id) ? 1f : 0f
+                        TieneEnemigo = _salasEnemigos.Contains(node.Id) ? 1f : 0f,
+                        TieneLoot    = _salasLoot.Contains(node.Id) ? 1f : 0f,
+                        PuertaBloq   = _salasPuerta.Contains(node.Id) ? 1f : 0f
                     });
                 }
                 else
@@ -208,73 +253,75 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
         }
 
-        private void FillGraphTopology(AgentObservation obs,
-                                      List<RoomNode> selected,
-                                      Dictionary<int, int> idToIndex)
+        private void FillGraphTopology(AgentObservation obs, int selectedCount)
         {
             for (int i = 0; i < GRAPH_SIZE; i++)
             {
                 for (int j = 0; j < GRAPH_SIZE; j++)
                     obs.GraphAdjacency[i, j] = 0f;
-                obs.GraphMask[i] = (i < selected.Count) ? 1f : 0f;
+                obs.GraphMask[i] = (i < selectedCount) ? 1f : 0f;
             }
 
-            for (int i = 0; i < selected.Count; i++)
+            for (int i = 0; i < selectedCount; i++)
             {
                 obs.GraphAdjacency[i, i] = 1f;
-                var node = selected[i];
-                foreach (var neighborId in node.ConnectedRoomIds)
+                var node = _selectedBuffer[i];
+                var neighbors = node.ConnectedRoomIds;
+                foreach (var neighborId in neighbors)
                 {
-                    if (idToIndex.TryGetValue(neighborId, out int j))
+                    if (_idToIndex.TryGetValue(neighborId, out int j))
                         obs.GraphAdjacency[i, j] = 1f;
                 }
             }
         }
 
-        private HashSet<int> ObtenerSalasConEnemigos(AgentObservation obs, Vector3 playerPos)
+        private void ObtenerSalasConEnemigos(AgentObservation obs, Vector3 playerPos)
         {
-            var set = new HashSet<int>();
-            if (obs.NearPlayers == null) return set;
+            _salasEnemigos.Clear();
+            if (obs.NearPlayers == null) return;
 
-            foreach (var p in obs.NearPlayers)
+            var list = obs.NearPlayers;
+            for (int i = 0; i < list.Count; i++)
             {
+                var p = list[i];
                 if (p.Hostilidad <= 0.5f) continue;
-                Vector3 worldPos = playerPos + new Vector3(p.RelX*500f, p.RelY*500f, p.RelZ*500f);
+                Vector3 worldPos = playerPos + new Vector3(p.RelX * 500f, p.RelY * 500f, p.RelZ * 500f);
                 int salaId = GetRoomIdAtPosition(worldPos);
-                if (salaId != 0) set.Add(salaId);
+                if (salaId != 0) _salasEnemigos.Add(salaId);
             }
-            return set;
         }
 
-        private HashSet<int> ObtenerSalasConLootValioso(AgentObservation obs, Vector3 playerPos)
+        private void ObtenerSalasConLootValioso(AgentObservation obs, Vector3 playerPos)
         {
-            var set = new HashSet<int>();
-            if (obs.NearItems == null) return set;
+            _salasLoot.Clear();
+            if (obs.NearItems == null) return;
 
-            foreach (var item in obs.NearItems)
+            var list = obs.NearItems;
+            for (int i = 0; i < list.Count; i++)
             {
+                var item = list[i];
                 if (item.Prioridad <= 0.3f) continue;
-                Vector3 worldPos = playerPos + new Vector3(item.RelX*20f, item.RelY*20f, item.RelZ*20f);
+                Vector3 worldPos = playerPos + new Vector3(item.RelX * 20f, item.RelY * 20f, item.RelZ * 20f);
                 int salaId = GetRoomIdAtPosition(worldPos);
-                if (salaId != 0) set.Add(salaId);
+                if (salaId != 0) _salasLoot.Add(salaId);
             }
-            return set;
         }
 
-        private HashSet<int> ObtenerSalasPuertaBloqueada(AgentObservation obs, Vector3 playerPos)
+        private void ObtenerSalasPuertaBloqueada(AgentObservation obs, Vector3 playerPos)
         {
-            var set = new HashSet<int>();
-            if (obs.NearDoors == null) return set;
+            _salasPuerta.Clear();
+            if (obs.NearDoors == null) return;
 
-            foreach (var door in obs.NearDoors)
+            var list = obs.NearDoors;
+            for (int i = 0; i < list.Count; i++)
             {
+                var door = list[i];
                 if (door.CanOpen) continue;
                 if (door.RequiredTier <= 0) continue;
-                Vector3 worldPos = playerPos + new Vector3(door.RelX*50f, door.RelY*50f, door.RelZ*50f);
+                Vector3 worldPos = playerPos + new Vector3(door.RelX * 50f, door.RelY * 50f, door.RelZ * 50f);
                 int salaId = GetRoomIdAtPosition(worldPos);
-                if (salaId != 0) set.Add(salaId);
+                if (salaId != 0) _salasPuerta.Add(salaId);
             }
-            return set;
         }
 
         private int GetRoomIdAtPosition(Vector3 worldPos)
@@ -311,38 +358,30 @@ namespace ScpAgent.Bot.Sensors.Modules
                 case RoomType.Lcz914:
                     prioridad = tierTarjeta is >= 1 and < 3 ? 80f : 0f;
                     break;
-
                 case RoomType.LczCheckpointB:
                 case RoomType.LczCheckpointA:
                     prioridad = tierTarjeta >= 3 ? 100f : 0f;
                     break;
-
                 case RoomType.LczPlants:
                     prioridad = tierTarjeta <= 2 ? 40f : 5f;
                     break;
-
                 case RoomType.LczClassDSpawn:
                     prioridad = 0;
                     break;
-
                 case RoomType.LczArmory:
                     prioridad = tierTarjeta > 3 ? 60f : 0f;
                     break;
-
                 case RoomType.Lcz330:
                     prioridad = tierTarjeta == 2 ? 100f : 0f;
                     break;
-
                 case RoomType.Lcz173:
                 case RoomType.LczGlassBox:
                 case RoomType.LczCafe:
                     prioridad = tierTarjeta < 3 ? 100f : 0f;
                     break;
-
                 case RoomType.LczToilets:
                     prioridad = tierTarjeta < 1 ? 80f : 0f;
                     break;
-
                 default:
                     prioridad = 5f;
                     break;

@@ -127,18 +127,21 @@ namespace ScpAgent.Bot.Sensors
 
             foreach (var module in _modules)
             {
-                // Mide los bytes asignados exclusivamente por ESTE hilo
+#if DEBUG
                 long antes = GC.GetAllocatedBytesForCurrentThread();
-                
+#endif
+
                 module.Actualizar(obs, ctx);
-                
+
+#if DEBUG
                 long despues = GC.GetAllocatedBytesForCurrentThread();
                 long diff = despues - antes;
-                
-                if (diff > 0) // Ahora sí verás los bytes reales exactos (ej. 24B, 64B...)
+
+                if (diff > 0)
                 {
                     Log.Warn($"[GC REAL] Módulo {module.GetType().Name} generó {diff} bytes.");
                 }
+#endif
             }
 
 

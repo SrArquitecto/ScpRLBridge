@@ -2,17 +2,21 @@ using System.Text;
 using System.Collections.Generic;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Data;
+using System;
 
 
 public static class JsonUtils
 {
     private static readonly string JSON_DONE_TRUE = "{\"Done\":true}";
+    [ThreadStatic] private static StringBuilder _sb;
 
     public static string ToJson(AgentObservation obs, RoleTypeId rol)
     {
         if (obs == null) return "{}";
 
-        StringBuilder sb = new StringBuilder(8192);
+        if (_sb == null) _sb = new StringBuilder(8192);
+        _sb.Clear();
+        StringBuilder sb = _sb;
         sb.Append("{");
 
         sb.Append("\"Faccion\":\"").Append(obs.Faction.ToString() ?? "Unknown").Append("\",");
