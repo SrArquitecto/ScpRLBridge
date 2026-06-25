@@ -24,12 +24,13 @@ namespace ScpAgent.Bot.Sensors
         }
 
         public override void Init()
-        {   
+        {
             base.Init();
             _modules.Add(_lockers);
             _modules.Add(_inventory);
             _modules.Add(_items);
-                
+            // El grafo debe ir al final para ver datos frescos de TODOS los módulos
+            _modules.Add(_graph);
         }
 
         public override void VincularEstrategia(Func<ItemType, float> fnPrioridad)

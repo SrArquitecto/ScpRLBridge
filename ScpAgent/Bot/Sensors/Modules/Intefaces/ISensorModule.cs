@@ -42,7 +42,7 @@ namespace ScpAgent.Bot.Sensors.Modules
     }
     public interface ISensorRoomGraphModule : ISensorModule
     {
-        public bool RegistrarTransicion(Room oldRoom, Room newRoom);
+        public bool RegistrarTransicion(Room oldRoom, Room newRoom, int agentId);
         public int GetVisitCount(Room room);
         public int TotalSalasDescubiertas();
 

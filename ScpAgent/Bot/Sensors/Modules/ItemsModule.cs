@@ -62,14 +62,15 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
             _frameCounter = 0;
             _cachedNearItems.Clear();
- 
-            try { _CargarItems(_player.Position); }
+            ctx.LootPositions.Clear();
+
+            try { _CargarItems(_player.Position, ctx); }
             catch (Exception ex) { Log.Error($"[ItemsModule] {ex.Message}"); }
- 
+
             _CopiarACache(obs);
         }
  
-        private void _CargarItems(Vector3 pos)
+        private void _CargarItems(Vector3 pos, SensorContext ctx)
         {
             if (_cachedItems == null)
                 _cachedItems = new List<Pickup>(Pickup.List);
@@ -130,10 +131,12 @@ namespace ScpAgent.Bot.Sensors.Modules
                 id.RealRelZ  = pk.Position.z - pos.z;
                 id.EsRecordado = false;
                 id.Antiguedad  = 0f;
+                if (id.Prioridad > 0.3f)
+                    ctx.LootPositions.Add(pk.Position);
                 _cachedNearItems.Add(id);
                 itemCount++;
             }
- 
+
             _memoriaItems.PurgarOlvidados(ahora);
  
             // ── 3. Volcar items RECORDADOS ─────────────────────────────────────────
@@ -161,6 +164,8 @@ namespace ScpAgent.Bot.Sensors.Modules
                 id.RealRelZ  = mem.UltimaPosicion.z - pos.z;
                 id.EsRecordado = true;
                 id.Antiguedad  = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO;
+                if (id.Prioridad > 0.3f)
+                    ctx.LootPositions.Add(mem.UltimaPosicion);
                 _cachedNearItems.Add(id);
                 itemCount++;
             }

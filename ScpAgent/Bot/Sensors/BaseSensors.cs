@@ -60,6 +60,7 @@ namespace ScpAgent.Bot.Sensors
         protected readonly ISensorModule        _basic          = new BasicPlayerModule();
         protected readonly ISensorModule        _aim            = new AimModule();
         protected readonly ISensorRoomGraphModule _graph    = new RoomsGraphModule();
+        int _diagStep = 0;
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -73,7 +74,7 @@ namespace ScpAgent.Bot.Sensors
         {
             _modules.Add(_players);
             _modules.Add(_damage);
-            _modules.Add(_rooms);
+            //_modules.Add(_rooms);
             _modules.Add(_doors);
             _modules.Add(_lifts);
             _modules.Add(_velocity);
@@ -126,7 +127,9 @@ namespace ScpAgent.Bot.Sensors
             SensorContext ctx = _BuildContext(delta, reward, accionAnterior, data, done);
 
             foreach (var module in _modules)
-            {
+            {   
+                if (_diagStep++ % 10000 == 0)                                                                                                                                                                                                          
+                    Log.Info($"[Diag] Mem={GC.GetTotalMemory(false)/1024/1024}MB Gen0={GC.CollectionCount(0)} Gen1={GC.CollectionCount(1)} Gen2={GC.CollectionCount(2)}");
 #if DEBUG
                 long antes = GC.GetAllocatedBytesForCurrentThread();
 #endif
@@ -140,6 +143,7 @@ namespace ScpAgent.Bot.Sensors
                 if (diff > 0)
                 {
                     Log.Warn($"[GC REAL] Módulo {module.GetType().Name} generó {diff} bytes.");
+                    
                 }
 #endif
             }
@@ -152,7 +156,7 @@ namespace ScpAgent.Bot.Sensors
 
         public bool RegistrarTransicion(Room vieja, Room nueva)
         {
-            bool primeraVez = _graph.RegistrarTransicion(vieja, nueva);
+            bool primeraVez = _graph.RegistrarTransicion(vieja, nueva, _agentId);
             return primeraVez;
         }
 
@@ -166,6 +170,7 @@ namespace ScpAgent.Bot.Sensors
             _ctxCache.Reward      = reward;
             _ctxCache.LastAction  = lastAction; 
             _ctxCache.Done        = done;
+            _ctxCache.AgentId     = _agentId;
             return _ctxCache;
         }
         

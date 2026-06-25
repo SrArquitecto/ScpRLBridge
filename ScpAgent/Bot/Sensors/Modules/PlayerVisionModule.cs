@@ -38,8 +38,10 @@ namespace ScpAgent.Bot.Sensors.Modules
         // ── Pool de salida (sin alloc) ───────────────────────────────────
         private readonly ActorData[] _pool = new ActorData[5];
         private readonly Actor[] _poolTemporal = new Actor[5];
-        private readonly Dictionary<RoleTypeId, string> _roleCache = new Dictionary<RoleTypeId, string>();
-        private readonly Dictionary<Team, string> _teamCache = new Dictionary<Team, string>();
+
+        // Cachés estáticas compartidas entre todos los bots (enum→string nunca cambia)
+        private static readonly Dictionary<RoleTypeId, string> _roleCache = new Dictionary<RoleTypeId, string>();
+        private static readonly Dictionary<Team, string> _teamCache = new Dictionary<Team, string>();
  
         // ── Buffer de raycast (sin alloc) ────────────────────────────────
         private readonly RaycastHit[] _rayBuffer = new RaycastHit[5];
@@ -76,6 +78,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         public void Actualizar(AgentObservation obs, SensorContext ctx)
         {
             obs.NearPlayers.Clear();
+            ctx.EnemyPositions.Clear();
 
             if (_player == null || !_player.IsAlive) return;
 
@@ -255,6 +258,8 @@ namespace ScpAgent.Bot.Sensors.Modules
                     countEnemies++;
                     if (item.Distancia/50f < closestEnemyDistance)
                         closestEnemyDistance = item.Distancia/50f;
+                    Vector3 worldPos = item.EsRecordado ? item.PosicionRecordada : target.Position;
+                    ctx.EnemyPositions.Add(worldPos);
                 }
                 else
                     countFriends++;

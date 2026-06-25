@@ -10,7 +10,7 @@ namespace ScpAgent.Bot
     {
         private readonly ScpAgentBot _bot;
         private bool _isSubscribed = false;
-        
+        public bool firstTime = true;
         public static int TotalEventosSuscritos { get; private set; } = 0;
         public BotEvents(ScpAgentBot bot)
         {
@@ -43,7 +43,7 @@ namespace ScpAgent.Bot
                 MapUtils.addBoundsToCache(ev.Player, _bot._sensores);
                 
                 // ── REGISTRO EN EL GRAFO DE NAVEGACIÓN ──────────────────────────────
-                if (_bot._sensores?.GetGraph() != null)
+                if (_bot._sensores?.GetGraph() != null && !firstTime)
                 {
                     bool esPrimeraVisita = false;
                     esPrimeraVisita = (bool)_bot._sensores?.RegistrarTransicion(ev.OldRoom, ev.NewRoom);
@@ -56,6 +56,7 @@ namespace ScpAgent.Bot
                     }
                 }
                 
+                firstTime = false;    
                 _bot._strategy?.OnRoomChanged(ev.OldRoom, ev.NewRoom);
             }
             catch (Exception ex)

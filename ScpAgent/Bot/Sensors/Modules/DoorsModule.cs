@@ -19,7 +19,11 @@ namespace ScpAgent.Bot.Sensors.Modules
         private int _frameCounter = UPDATE_FREQUENCY;
         protected readonly DoorData[]     _doorPool    = new DoorData[5];
         private List<Door> _cachedDoors;
-        private Dictionary<int, string> _doorColliderCache = new Dictionary<int, string>();
+
+        // Caché estática compartida entre todos los bots (colliders de puertas no cambian en ronda)
+        private static readonly Dictionary<int, string> _doorColliderCache = new Dictionary<int, string>();
+        public static void ClearGlobalCache() => _doorColliderCache.Clear();
+
         private List<DoorData> _cachedNearDoors { get; set; } = new List<DoorData>();  
         protected readonly List<(Door d, float dist)> _doorsConDist = new List<(Door d, float dist)>(50);
         private readonly VisualMemory <ObjectMemoryDoor> _memoriaPuertas  = new VisualMemory<ObjectMemoryDoor>(TIEMPO_OLVIDO);
@@ -39,7 +43,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         public void Reset()
         {
             _memoriaPuertas.Clear();
-            _doorColliderCache.Clear();
+            // NOTA: _doorColliderCache es static — se limpia en RoundManager, no aquí
             _cachedNearDoors.Clear();
             _doorsConDist.Clear();
             _cachedDoors  = null;
@@ -55,16 +59,16 @@ namespace ScpAgent.Bot.Sensors.Modules
             _frameCounter = 0;
             _cachedNearDoors.Clear();
             _doorsConDist.Clear();
-            //_doorColliderCache.Clear();
+            ctx.BlockedDoorPositions.Clear();
             obs.NearDoors.Clear();
 
-            try { _CargarPuertas(_player.Position, ModuleUtils.GetBestKeycardTier(_player)); }
+            try { _CargarPuertas(_player.Position, ModuleUtils.GetBestKeycardTier(_player), ctx); }
             catch (Exception ex) { Log.Error($"[Sensors] NULL en PUERTAS: {ex.Message}"); }
             _CopiarACachePuertas(obs);
             Log.Debug($"[Perf-BASE] Tras CopiarACachePuertas: obs.NearDoors={obs.NearDoors.Count}");
         }
 
-        private void _CargarPuertas(Vector3 pos, int playerTier)
+        private void _CargarPuertas(Vector3 pos, int playerTier, SensorContext ctx)
         {
             if (_cachedDoors == null)
                 _cachedDoors = new List<Door>(Door.List);
@@ -153,6 +157,8 @@ namespace ScpAgent.Bot.Sensors.Modules
                     dd.RealRelZ     = d.Position.z - pos.z;
                     dd.EsRecordado  = false;
                     dd.Antiguedad   = 0f;
+                    if (!dd.CanOpen && dd.RequiredTier > 0)
+                        ctx.BlockedDoorPositions.Add(d.Position);
                     _cachedNearDoors.Add(dd);
                     doorCount++;
                 }
@@ -212,8 +218,6 @@ namespace ScpAgent.Bot.Sensors.Modules
                 }
                 
                 dd.Distance     = dist / 50f;
-                
-                
                 dd.IsOpen       = mem.PuertaAbierta; // último estado conocido
                 dd.RelX         = (mem.UltimaPosicion.x - pos.x) / 50f;
                 dd.RelY         = (mem.UltimaPosicion.y - pos.y) / 50f;
@@ -223,6 +227,8 @@ namespace ScpAgent.Bot.Sensors.Modules
                 dd.RealRelZ     = mem.UltimaPosicion.z - pos.z;
                 dd.EsRecordado  = true;
                 dd.Antiguedad   = (ahora - mem.UltimoTimestamp) / TIEMPO_OLVIDO; // normalizado 0-1
+                if (!dd.CanOpen && dd.RequiredTier > 0)
+                    ctx.BlockedDoorPositions.Add(mem.UltimaPosicion);
                 _cachedNearDoors.Add(dd);
                 doorCount++;
             }

@@ -123,24 +123,38 @@ namespace ScpAgent.Network
             
         public void DetenerEntrenamiento()
         {
-            Log.Debug("[ControlServer] Limpiando colas de mensajes para la nueva ronda (Preservando Sockets)...");
-            
-            // NO cerramos _clientes ni _writers si Python va a seguir mandando datos.
-            // Solo purgamos los mensajes acumulados de la ronda anterior para que no haya lag.
-            foreach (var agentId in _incoming.Keys)
+            Log.Debug("[ControlServer] Deteniendo entrenamiento. Cerrando sockets de agentes (listener activo para reconexión)...");
+
+            // Cerramos TODOS los sockets de agentes para forzar a Python a detectar la desconexión.
+            // El listener queda vivo para que Python pueda hacer RECONNECT_ cuando la ronda arranque.
+            // IsPythonConnected se mantiene true para que OnWaitingForPlayers siga disparando
+            // SpawnearAgentes() entre rondas (si no, el servidor se queda idle 30s).
+            foreach (var par in _clientes)
             {
-                if (_incoming.TryGetValue(agentId, out var qIn)) while (qIn.TryDequeue(out _)) { }
-                if (_outgoing.TryGetValue(agentId, out var qOut)) while (qOut.TryDequeue(out _)) { }
+                try
+                {
+                    par.Value?.GetStream()?.Close();
+                    par.Value?.Close();
+                    par.Value?.Dispose();
+                }
+                catch { /* Ignorar errores al cerrar flujos ya rotos */ }
             }
-            //_clientes.Clear();
-            //_writers.Clear();
-            //_incoming.Clear();
-            //_outgoing.Clear();
-            
-            //IsPythonConnected = false;
+            foreach (var writer in _writers.Values)
+            {
+                try { writer?.Close(); writer?.Dispose(); } catch { }
+            }
+
+            _clientes.Clear();
+            _writers.Clear();
+            _incoming.Clear();
+            _outgoing.Clear();
+            // NOTA: NO limpiamos _outgoingSignals aquí para que los hilos EscribirAsync antiguos
+            // puedan despertar vía LeerAsync->finally->sem.Release() y terminar limpiamente.
+            // NOTA: NO ponemos IsPythonConnected = false (ver LeerAsync finally).
+
             _isTrainingActive = false;
             Timing.KillCoroutines(_masterLoopHandle);
-            Log.Debug("[ControlServer] 🛑 Bucle Maestro Central detenido.");
+            Log.Debug("[ControlServer] 🛑 Bucle Maestro Central detenido. Aguardando reconexiones...");
         }
 
         public void DetenerServidor()
@@ -185,7 +199,10 @@ namespace ScpAgent.Network
             // NO uses usings globales aquí arriba para no asfixiar el bucle largo de los agentes
             var stream = cliente.GetStream();
             var reader = new StreamReader(stream, Encoding.UTF8);
-            var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+            // IMPORTANTE: new UTF8Encoding(false) para NO emitir BOM en la primera escritura.
+            // Si usamos Encoding.UTF8, el primer WriteLineAsync envía \uFEFF antes del texto,
+            // lo que rompe a clientes Python que hacen `resp == "WAIT"`.
+            var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
 
             try
             {
@@ -290,7 +307,7 @@ namespace ScpAgent.Network
                     if (partes.Length == 3 && int.TryParse(partes[1], out int agentId))
                     {
                         string nombreRol = partes[2].Trim();
-                        if (_clientes.ContainsKey(agentId)) 
+                        if (_clientes.ContainsKey(agentId))
                         {
                             Log.Warn($"[ControlServer] Agente {agentId} ya registrado. Rechazando.");
                             cliente.Close();
@@ -298,7 +315,7 @@ namespace ScpAgent.Network
                         }
 
                         // 1. ENVIAR RESPUESTA MANDATORIA SÍNCRONA
-                        try 
+                        try
                         {
                             // En lugar de usar cliente.Client.Send, usamos el escritor que ya tenemos arriba de forma limpia
                             await writer.WriteLineAsync("REGISTERED");
@@ -315,14 +332,14 @@ namespace ScpAgent.Network
                         _incoming[agentId]  = new ConcurrentQueue<string>();
                         _outgoing[agentId]  = new ConcurrentQueue<string>();
                         _outgoingSignals[agentId] = new SemaphoreSlim(0);
-                        
+
                         // 🌟 REUTILIZACIÓN CRÍTICA: Guardamos el escritor original. Ya no fallará con "Stream was not writable"
-                        _writers[agentId]   = writer; 
+                        _writers[agentId]   = writer;
 
                             // Disparamos de forma segura (si hay alguien suscrito)
                         AgentHandshakeReceived?.Invoke(this, new AgentHandshakeEventArgs(agentId, nombreRol));
 
-                        
+
 
                         Log.Debug($"[ControlServer] Agente {agentId} registrado correctamente y listo.");
 
@@ -336,7 +353,52 @@ namespace ScpAgent.Network
                         // 3. ENTRAR EN LOS BUCLES ASÍNCRONOS
                         // 🌟 REUTILIZACIÓN CRÍTICA: Pasamos el 'reader' original para NO perder los datos del buffer
                         await Task.WhenAll(
-                            LeerAsync(agentId, reader), 
+                            LeerAsync(agentId, reader),
+                            EscribirAsync(agentId)
+                        );
+                    }
+                }
+                // ── RECONNECT_id (exclusivo para reconexión entre rondas) ──────────────────
+                else if (handshake.StartsWith("RECONNECT_"))
+                {
+                    string[] partes = handshake.Split('_');
+                    if (partes.Length == 2 && int.TryParse(partes[1], out int agentId))
+                    {
+                        // Solo aceptamos reconexión si el bucle maestro está activo.
+                        // Si no, devolvemos "WAIT" y cerramos — Python reintentará tras unos segundos.
+                        if (!_isTrainingActive || _clientes.ContainsKey(agentId))
+                        {
+                            try
+                            {
+                                await writer.WriteLineAsync(_isTrainingActive ? "DUPLICATE" : "WAIT");
+                                await writer.FlushAsync();
+                            }
+                            catch { /* cliente desconectado, no importa */ }
+                            cliente.Close();
+                            return;
+                        }
+
+                        try
+                        {
+                            await writer.WriteLineAsync("REGISTERED");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"[ControlServer] Fallo enviando REGISTERED a RECONNECT {agentId}: {ex.Message}");
+                            cliente.Close();
+                            return;
+                        }
+
+                        _clientes[agentId]        = cliente;
+                        _incoming[agentId]        = new ConcurrentQueue<string>();
+                        _outgoing[agentId]        = new ConcurrentQueue<string>();
+                        _outgoingSignals[agentId] = new SemaphoreSlim(0);
+                        _writers[agentId]         = writer;
+
+                        Log.Debug($"[ControlServer] Agente {agentId} RECONECTADO y listo.");
+
+                        await Task.WhenAll(
+                            LeerAsync(agentId, reader),
                             EscribirAsync(agentId)
                         );
                     }
@@ -407,14 +469,16 @@ namespace ScpAgent.Network
                 // Tu lógica exacta de limpieza que libera la RAM y las colas
                 if (_clientes.TryRemove(agentId, out var c)) { c?.Close(); c?.Dispose(); }
                 if (_writers.TryRemove(agentId, out var w)) { w?.Close(); w?.Dispose(); }
-                
+
                 if (_incoming.TryRemove(agentId, out var qIn)) { while (qIn.TryDequeue(out _)) { } }
                 if (_outgoing.TryRemove(agentId, out var qOut)) { while (qOut.TryDequeue(out _)) { } }
-                
-                if (_clientes.Count == 0) 
-                {
-                    IsPythonConnected = false;
-                }
+
+                // NOTA: NO ponemos IsPythonConnected = false aquí.
+                // Este finally se dispara tanto si el cliente se fue como si el plugin
+                // cerró la conexión por DetenerEntrenamiento. Si lo ponemos en false,
+                // OnWaitingForPlayers deja de spawnear bots y el servidor se queda idle
+                // 30s entre rondas. Lo correcto: IsPythonConnected solo se pone en false
+                // en DetenerServidor() (apagado total del plugin).
 
                 if (_outgoingSignals.TryGetValue(agentId, out var sem))
                     sem.Release();
@@ -502,9 +566,15 @@ namespace ScpAgent.Network
 
         private void _ProcesarAgenteEnTick(int agentId, IAgentController bot, ISensors sensors)
         {
-            if (!_incoming.TryGetValue(agentId, out var colaIn) ||
-                !colaIn.TryDequeue(out string msg))
+            if (!_incoming.TryGetValue(agentId, out var colaIn))
                 return;
+
+            // Descartamos todos los mensajes atrasados excepto el último — evita
+            // procesar acciones de frames anteriores cuando Python reconecta rápido.
+            string msg = null;
+            while (colaIn.TryDequeue(out string m)) msg = m;
+            if (msg == null) return;
+
             try
             {
                 _ProcesarMensaje(bot, msg, agentId, _pendingDelta);

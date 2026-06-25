@@ -4,6 +4,7 @@ using ScpAgent.Bot.Sensors.Data;
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
@@ -90,21 +91,18 @@ namespace ScpAgent.Bot.Sensors.Modules
         {
             if (_player == null || _player.Transform == null) return;
 
-            Vector3 playerPos = _player.Position;
-            int playerTier    = ModuleUtils.GetBestKeycardTier(_player);
-
             int bfsCount      = BfsLocalSubgraph(MAX_BFS_DEPTH);
-            int selectedCount = SelectTopK(bfsCount, playerPos, GRAPH_SIZE, _selectedBuffer);
+            int selectedCount = SelectTopK(bfsCount, ctx.PlayerPosition, GRAPH_SIZE, _selectedBuffer);
 
             _idToIndex.Clear();
             for (int i = 0; i < selectedCount; i++)
                 _idToIndex[_selectedBuffer[i].Id] = i;
 
-            FillObservation(obs, selectedCount, playerPos, playerTier);
+            FillObservation(obs, selectedCount, ctx);
             FillGraphTopology(obs, selectedCount);
         }
 
-        public bool RegistrarTransicion(Room oldRoom, Room newRoom)
+        public bool RegistrarTransicion(Room oldRoom, Room newRoom, int agentId)
         {
             bool esPrimeraVisita = false;
             if (newRoom == null || newRoom.Type == RoomType.Unknown) return false;
@@ -116,7 +114,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                                        ObtenerPrioridadSala(newRoom, ModuleUtils.GetBestKeycardTier(_player)));
                 _nodes[newId] = newNode;
                 esPrimeraVisita = true;
-                Log.Info($"Registrada {newRoom.Name}");
+                Log.Info($"Agente {agentId} Registrada {newRoom.Name} id; {newId}");
             }
 
             newNode.VisitCount++;
@@ -209,29 +207,28 @@ namespace ScpAgent.Bot.Sensors.Modules
 
         private void FillObservation(AgentObservation obs,
                                      int selectedCount,
-                                     Vector3 playerPos,
-                                     int playerTier)
+                                     SensorContext ctx)
         {
             obs.GraphNodes.Clear();
 
-            ObtenerSalasConEnemigos(obs, playerPos);
-            ObtenerSalasConLootValioso(obs, playerPos);
-            ObtenerSalasPuertaBloqueada(obs, playerPos);
+            ObtenerSalasConEnemigos(ctx);
+            ObtenerSalasConLootValioso(ctx);
+            ObtenerSalasPuertaBloqueada(ctx);
 
             for (int i = 0; i < GRAPH_SIZE; i++)
             {
                 if (i < selectedCount)
                 {
                     var node = _selectedBuffer[i];
-                    float dist = Vector3.Distance(node.Position, playerPos);
+                    float dist = Vector3.Distance(node.Position, ctx.PlayerPosition);
 
                     obs.GraphNodes.Add(new GraphNodeData
                     {
                         Id           = node.Id,
                         TypeId       = (int)node.Type,
-                        RelX         = (node.Position.x - playerPos.x) / RANGO_MAPA,
-                        RelY         = (node.Position.y - playerPos.y) / RANGO_MAPA,
-                        RelZ         = (node.Position.z - playerPos.z) / RANGO_MAPA,
+                        RelX         = (node.Position.x - ctx.PlayerPosition.x) / RANGO_MAPA,
+                        RelY         = (node.Position.y - ctx.PlayerPosition.y) / RANGO_MAPA,
+                        RelZ         = (node.Position.z - ctx.PlayerPosition.z) / RANGO_MAPA,
                         PosX         = node.Position.x,
                         PosY         = node.Position.y,
                         PosZ         = node.Position.z,
@@ -275,51 +272,32 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
         }
 
-        private void ObtenerSalasConEnemigos(AgentObservation obs, Vector3 playerPos)
+        private void ObtenerSalasConEnemigos(SensorContext ctx)
         {
             _salasEnemigos.Clear();
-            if (obs.NearPlayers == null) return;
-
-            var list = obs.NearPlayers;
-            for (int i = 0; i < list.Count; i++)
+            foreach (var pos in ctx.EnemyPositions)
             {
-                var p = list[i];
-                if (p.Hostilidad <= 0.5f) continue;
-                Vector3 worldPos = playerPos + new Vector3(p.RelX * 50f, p.RelY * 50f, p.RelZ * 50f);
-                int salaId = GetRoomIdAtPosition(worldPos);
+                int salaId = GetRoomIdAtPosition(pos);
                 if (salaId != 0) _salasEnemigos.Add(salaId);
             }
         }
 
-        private void ObtenerSalasConLootValioso(AgentObservation obs, Vector3 playerPos)
+        private void ObtenerSalasConLootValioso(SensorContext ctx)
         {
             _salasLoot.Clear();
-            if (obs.NearItems == null) return;
-
-            var list = obs.NearItems;
-            for (int i = 0; i < list.Count; i++)
+            foreach (var pos in ctx.LootPositions)
             {
-                var item = list[i];
-                if (item.Prioridad <= 0.3f) continue;
-                Vector3 worldPos = playerPos + new Vector3(item.RelX * 20f, item.RelY * 20f, item.RelZ * 20f);
-                int salaId = GetRoomIdAtPosition(worldPos);
+                int salaId = GetRoomIdAtPosition(pos);
                 if (salaId != 0) _salasLoot.Add(salaId);
             }
         }
 
-        private void ObtenerSalasPuertaBloqueada(AgentObservation obs, Vector3 playerPos)
+        private void ObtenerSalasPuertaBloqueada(SensorContext ctx)
         {
             _salasPuerta.Clear();
-            if (obs.NearDoors == null) return;
-
-            var list = obs.NearDoors;
-            for (int i = 0; i < list.Count; i++)
+            foreach (var pos in ctx.BlockedDoorPositions)
             {
-                var door = list[i];
-                if (door.CanOpen) continue;
-                if (door.RequiredTier <= 0) continue;
-                Vector3 worldPos = playerPos + new Vector3(door.RelX * 50f, door.RelY * 50f, door.RelZ * 50f);
-                int salaId = GetRoomIdAtPosition(worldPos);
+                int salaId = GetRoomIdAtPosition(pos);
                 if (salaId != 0) _salasPuerta.Add(salaId);
             }
         }

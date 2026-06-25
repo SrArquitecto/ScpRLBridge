@@ -143,6 +143,7 @@ namespace ScpAgent.Managers
             _episode++;
             _roundEnding = false;
             MapUtils.ClearBoundsCache();
+            ScpAgent.Bot.Sensors.Modules.DoorsModule.ClearGlobalCache();
             Log.Debug($"[RoundManager] 🏁 === Iniciando Episodio {_episode} ===");
 
             _plugin.ControlServer.IniciarEntrenamiento();

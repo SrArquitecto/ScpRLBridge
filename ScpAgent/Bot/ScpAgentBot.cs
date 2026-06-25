@@ -185,6 +185,7 @@ namespace ScpAgent.Bot
         {
             if (_exiledPlayer != null)
                 BaseSensors.agentCacheData.Remove(_exiledPlayer.Id);
+                
             _firstRespawn = true;
             // ── Estado de acción ────────────────────────────────────────────
             _ultimaAccion   = 12; // NOOP
