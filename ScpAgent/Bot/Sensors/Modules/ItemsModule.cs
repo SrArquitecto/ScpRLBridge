@@ -27,7 +27,6 @@ namespace ScpAgent.Bot.Sensors.Modules
  
         // ── Comparador estático — evita crear lambda/Comparison cada Sort ─────
         private Func<ItemType, float>  _fnPrioridad;
-        private Func<ItemType, string> _fnCategoria;
  
         private readonly VisualMemory<ObjectMemoryItem> _memoriaItems
             = new VisualMemory<ObjectMemoryItem>(TIEMPO_OLVIDO);
@@ -48,11 +47,9 @@ namespace ScpAgent.Bot.Sensors.Modules
             _itemsConDist.Clear();
         }
  
-        public void VincularEstrategia(Func<ItemType, float> fnPrioridad,
-            Func<ItemType, string> fnCategoria)
+        public void VincularEstrategia(Func<ItemType, float> fnPrioridad)
         {
             _fnPrioridad = fnPrioridad;
-            _fnCategoria = fnCategoria;
         }
  
         public void Actualizar(AgentObservation obs, SensorContext ctx)
@@ -121,7 +118,7 @@ namespace ScpAgent.Bot.Sensors.Modules
  
                 var id       = _itemPool[itemCount];
                 id.Type      = pk.Type.ToString();
-                id.Category  = _fnCategoria?.Invoke(pk.Type) ?? "Other";
+                id.Category  = ModuleUtils.CategorizarItem(pk.Type) ?? "Other";
                 id.Prioridad = _fnPrioridad?.Invoke(pk.Type) ?? 10f;
                 id.Tier      = ModuleUtils.GetKeycardTier(pk.Type);
                 id.Distance  = dist / 25f;
@@ -153,7 +150,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 var id   = _itemPool[itemCount];
                 id.Type      = tipo.ToString();
                 id.Tier      = mem.Tier;
-                id.Category  = _fnCategoria?.Invoke(tipo) ?? "Other";
+                id.Category  = ModuleUtils.CategorizarItem(tipo) ?? "Other";
                 id.Prioridad = _fnPrioridad?.Invoke(tipo) ?? 10f;
                 id.Distance  = dist / 25f;
                 id.RelX      = (mem.UltimaPosicion.x - pos.x) / 25f;

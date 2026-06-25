@@ -88,6 +88,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                     var memLifts = _memoriaLifts.ObtenerORegistrar(liftId, l.Position, ahora, l);
                     memLifts.AscensorCerrado = l.IsLocked; 
                     memLifts.AscensorOperativo = l.IsOperative; 
+                    memLifts.EnElAscensor = l.IsInElevator(_player.Position);
                     memLifts.AscensorMoviendose = l.IsMoving; 
                     memLifts.NivelActual = l.CurrentLevel; 
                     _liftsConDist.Add((l, dist));
@@ -110,6 +111,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 ld.Distance     = d / 50f;
                 ld.IsLocked     = l.IsLocked;
                 ld.IsClosed     = l.IsOperative;
+                ld.IsInElevator = l.IsInElevator(_player.Position);
                 ld.IsMoving     = l.IsMoving;
                 ld.CanUse       = !l.IsMoving;
                 ld.CurrentLevel = l.CurrentLevel;
@@ -147,9 +149,10 @@ namespace ScpAgent.Bot.Sensors.Modules
                     
                 }
                 l.IsLocked     = mem.AscensorCerrado;
+                l.IsInElevator = mem.EnElAscensor;
                 l.IsClosed     = mem.AscensorOperativo;
                 l.IsMoving     = mem.AscensorMoviendose;
-                l.CanUse       = mem.PuedeUsarse;;                       
+                l.CanUse       = mem.PuedeUsarse;                     
                 l.CurrentLevel = mem.NivelActual;
                 l.RelX = (mem.UltimaPosicion.x - pos.x) / 50f;
                 l.RelY = (mem.UltimaPosicion.y - pos.y) / 50f;

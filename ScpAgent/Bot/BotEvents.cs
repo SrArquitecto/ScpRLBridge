@@ -10,6 +10,7 @@ namespace ScpAgent.Bot
     {
         private readonly ScpAgentBot _bot;
         private bool _isSubscribed = false;
+        
         public static int TotalEventosSuscritos { get; private set; } = 0;
         public BotEvents(ScpAgentBot bot)
         {
@@ -37,11 +38,24 @@ namespace ScpAgent.Bot
         {
             if (!_EsEsteAgente(ev.Player)) return;
             if (ev.NewRoom == null || ev.NewRoom.Type == RoomType.Unknown) return;
-            
             try
             {
                 MapUtils.addBoundsToCache(ev.Player, _bot._sensores);
-                //_sensores?.MarcarRoomDescubierta(ev.NewRoom);
+                
+                // ── REGISTRO EN EL GRAFO DE NAVEGACIÓN ──────────────────────────────
+                if (_bot._sensores?.GetGraph() != null)
+                {
+                    bool esPrimeraVisita = false;
+                    esPrimeraVisita = (bool)_bot._sensores?.RegistrarTransicion(ev.OldRoom, ev.NewRoom);
+                        
+                    if (esPrimeraVisita)
+                    {
+                        Log.Debug($"[Grafo] ¡Agente {_bot._agentId} descubrió una nueva sala: {ev.NewRoom.Type}!");
+                            // Aquí puedes inyectar una recompensa positiva directa a Python:
+                            // _bot._ctx?.AddReward(1.0f); // Recompensa por exploración
+                    }
+                }
+                
                 _bot._strategy?.OnRoomChanged(ev.OldRoom, ev.NewRoom);
             }
             catch (Exception ex)

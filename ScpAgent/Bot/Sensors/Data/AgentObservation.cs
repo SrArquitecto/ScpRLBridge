@@ -10,12 +10,14 @@ namespace ScpAgent.Bot.Sensors.Data
         // Estado básico y GPS
         public Team Faction { get; set; }
         public float FactionId { get; set; }
+        public RoleTypeId Role { get; set; }
+        public float RoleId { get; set; }
         public float PosX { get; set; }
         public float PosY { get; set; }
         public float PosZ { get; set; }
-        public float RelX { get; set; }
-        public float RelY { get; set; }
-        public float RelZ { get; set; }
+        public float PosicionLocalX { get; set; }
+        public float PosicionLocalY { get; set; }
+        public float PosicionLocalZ { get; set; }
         public float GPSX { get; set; }
         public float GPSY { get; set; }
         public float GPSZ { get; set; }
@@ -32,6 +34,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public int CanInteract { get; set; }
         public int LastAction { get; set; }
         public float Health { get; set; }
+        public bool AmIHurt { get; set; }
         public string Zone { get; set; }
         public string Room { get; set; }
         public bool HasKeycard { get; set; }
@@ -41,6 +44,13 @@ namespace ScpAgent.Bot.Sensors.Data
         public List<InventoryItemData> Inventory { get; set; } = new List<InventoryItemData>(32);
         public int   InventorySlots  { get; set; } // slots libres (max 8)
             // Munición en reserva por tipo — separada del inventario
+        public float CountKeycards { get; set; } 
+        public float CountFirearms { get; set; } 
+        public float CountMedicals { get; set; } 
+        public float CountArmor { get; set; }
+        public float CountGrenades { get; set; } 
+        public float CountScpItems { get; set; } 
+        public float CountOthers   { get; set; } 
         public int   Ammo9x19        { get; set; }
         public int   Ammo12gauge     { get; set; }
         public int   Ammo556x45      { get; set; }
@@ -56,7 +66,9 @@ namespace ScpAgent.Bot.Sensors.Data
         public List<LockerData> NearLockers { get; set; } = new List<LockerData>(32);
         public List<RoomData> NearRooms { get; set; } = new List<RoomData>(32);
         public List<ActorData> NearPlayers { get; set; } = new List<ActorData>(32);
-
+        public float CountEnemies { get; set; }
+        public float CountFriends { get; set; }
+        public float CountNeutrals { get; set; }
         public int TotalRooms => NearRooms.Count;
 
         // Datos del Raycast de apuntado (Aim)
@@ -82,6 +94,9 @@ namespace ScpAgent.Bot.Sensors.Data
         public bool   AttackerInMemory { get; set; } // si el atacante está en _memoriaJugadores
 
         // Estado del entrenamiento de RL
+        public List<GraphNodeData> GraphNodes   { get; set; } = new List<GraphNodeData>(16);                                                                                                                                                   
+        public float[,]           GraphAdjacency { get; set; } = new float[16, 16];                                                                                                                                                            
+        public float[]            GraphMask      { get; set; } = new float[16];
         public float Reward { get; set; }
         public bool Done { get; set; }
 
@@ -94,6 +109,7 @@ namespace ScpAgent.Bot.Sensors.Data
             NearLockers.Clear();
             NearRooms.Clear();
             NearPlayers.Clear();
+            GraphNodes.Clear();
         }
     }
 
@@ -172,6 +188,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public bool IsMoving { get; set; }
         public bool IsLocked { get; set; }
         public bool IsClosed { get; set; } 
+        public bool IsInElevator { get; set; }
         public bool CanUse { get; set; }
         public int CurrentLevel { get; set; }
         public bool EsRecordado {get; set;}
@@ -264,4 +281,39 @@ namespace ScpAgent.Bot.Sensors.Data
         public float   UltimoTimestamp;
         public bool    VistoEsteFrame;
     }
+
+    public class GraphNodeData                                                                                                                                                                                                             
+     {                                                                                                                                                                                                                                      
+         public int   Id;                                                                                                                                                                                                                   
+         public int   TypeId;                                                                                                                                                                                                               
+         public float RelX, RelY, RelZ;                                                                                                                                                                                                     
+         public float PosX, PosY, PosZ;                                                                                                                                                                                                     
+         public float Prioridad;                                                                                                                                                                                                            
+         public float Distancia;                                                                                                                                                                                                            
+         public float DistNorm;                                                                                                                                                                                                             
+         public int   VisitCount;                                                                                                                                                                                                           
+         public float Antiguedad;                                                                                                                                                                                                           
+         public float EsActual;                                                                                                                                                                                                             
+         public float TieneEnemigo;                                                                                                                                                                                                         
+         public float TieneLoot;                                                                                                                                                                                                            
+         public float PuertaBloq;                                                                                                                                                                                                           
+                                                                                                                                                                                                                                            
+         public static GraphNodeData Pad() => new GraphNodeData                                                                                                                                                                             
+         {                                                                                                                                                                                                                                  
+             Id = -1, TypeId = 0,                                                                                                                                                                                                           
+             RelX = 0f,
+             RelY = 0f,
+             RelZ = 0f,                                                                                                                                                                                                       
+             PosX = 0f,
+             PosY = 0f,
+             PosZ = 0f,                                                                                                                                                                                                       
+             Prioridad = 0f, Distancia = 9999f, DistNorm = 1f,                                                                                                                                                                              
+             VisitCount = 0, Antiguedad = 0f,                                                                                                                                                                                               
+             EsActual = 0f,
+             TieneEnemigo = 0f,
+             TieneLoot = 0f,
+             PuertaBloq = 0f                                                                                                                                                                          
+         };                                                                                                                                                                                                                                 
+     }                                      
+
 }

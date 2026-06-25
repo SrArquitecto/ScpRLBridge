@@ -26,7 +26,8 @@ namespace ScpAgent.Bot.Sensors.Modules.Memory.Data
         public bool  AscensorMoviendose;  
         public bool AscensorOperativo; 
         public bool  AscensorCerrado; 
-        public bool  PuedeUsarse;   
+        public bool  PuedeUsarse;
+        public bool EnElAscensor;
         public int NivelActual;  
 
     }

@@ -19,7 +19,6 @@ namespace ScpAgent.Bot.Strategies.Interfaces
     public interface IAgentRoleStrategyHuman : IAgentRoleStrategyBase
     {
         float CalcularPrioridadItem(ItemType tipo);
-        string CategorizarItem(ItemType tipo);
         
         
     }

@@ -50,7 +50,7 @@ namespace ScpAgent.Bot
             _bot.SetDependencias(fakeConn, botGameObject, tempPlayer, cc, role);
 
             // 5. CRÍTICO: Esperar a que el servidor genere el cuerpo real
-            _initDelayHandle = Timing.CallDelayed(1f, () =>
+            _initDelayHandle = Timing.CallDelayed(0.5f, () =>
             {
                 // A) Refrescar el wrapper de EXILED (¡Vital!)
                 Player freshPlayer = Player.Get(botGameObject);
@@ -109,7 +109,7 @@ namespace ScpAgent.Bot
 
             _bot.SetDependencias(fakeConn, botGameObject, ExiledPlayer, cc, role);
             // 7. Refrescar wrapper tras Role.Set
-            Timing.CallDelayed(1f, () =>
+            Timing.CallDelayed(0.5f, () =>
             {
                 var freshPlayer = Player.Get(botGameObject);
                 if (freshPlayer != null)

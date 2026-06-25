@@ -59,6 +59,7 @@ namespace ScpAgent.Bot.Sensors
         protected readonly ISensorModule        _whiskers       = new WhiskersModule();
         protected readonly ISensorModule        _basic          = new BasicPlayerModule();
         protected readonly ISensorModule        _aim            = new AimModule();
+        protected readonly ISensorRoomGraphModule _graph    = new RoomsGraphModule();
 
         // ───────────────────────────────────────────────────────────────────────
         // CONSTRUCTOR
@@ -143,6 +144,14 @@ namespace ScpAgent.Bot.Sensors
             return obs;
         }
 
+        public ISensorRoomGraphModule GetGraph() => _graph;
+
+        public bool RegistrarTransicion(Room vieja, Room nueva)
+        {
+            bool primeraVez = _graph.RegistrarTransicion(vieja, nueva);
+            return primeraVez;
+        }
+
         private SensorContext _BuildContext(float deltaTime, float reward, int lastAction, AgentCacheData data, bool done)
         {
             _ctxCache.HalfX       = data.halfX;
@@ -181,7 +190,7 @@ namespace ScpAgent.Bot.Sensors
             BaseSensors.agentCacheData.Clear();
             foreach (var m in _modules) m.Reset();
         }
-        public abstract void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria);
+        public abstract void VincularEstrategia(Func<ItemType, float> fnPrioridad);
         
         public abstract void Destruir();
 

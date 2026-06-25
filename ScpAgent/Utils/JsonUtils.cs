@@ -22,9 +22,9 @@ public static class JsonUtils
         sb.Append("\"PosX\":"); AppendFloat(sb, obs.PosX, 3); sb.Append(",");
         sb.Append("\"PosY\":"); AppendFloat(sb, obs.PosY, 3); sb.Append(",");
         sb.Append("\"PosZ\":"); AppendFloat(sb, obs.PosZ, 3); sb.Append(",");
-        sb.Append("\"RelX\":"); AppendFloat(sb, obs.RelX, 3); sb.Append(",");
-        sb.Append("\"RelY\":"); AppendFloat(sb, obs.RelY, 3); sb.Append(",");
-        sb.Append("\"RelZ\":"); AppendFloat(sb, obs.RelZ, 3); sb.Append(",");
+        sb.Append("\"RelX\":"); AppendFloat(sb, obs.PosicionLocalX, 3); sb.Append(",");
+        sb.Append("\"RelY\":"); AppendFloat(sb, obs.PosicionLocalY, 3); sb.Append(",");
+        sb.Append("\"RelZ\":"); AppendFloat(sb, obs.PosicionLocalZ, 3); sb.Append(",");
         sb.Append("\"GPSX\":"); AppendFloat(sb, obs.GPSX, 3); sb.Append(",");
         sb.Append("\"GPSY\":"); AppendFloat(sb, obs.GPSY, 3); sb.Append(",");
         sb.Append("\"GPSZ\":"); AppendFloat(sb, obs.GPSZ, 3); sb.Append(",");

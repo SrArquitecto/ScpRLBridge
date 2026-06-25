@@ -32,10 +32,9 @@ namespace ScpAgent.Bot.Sensors
                 
         }
 
-        public override void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria)
+        public override void VincularEstrategia(Func<ItemType, float> fnPrioridad)
         {
-            _items.VincularEstrategia(fnPrioridad, fnCategoria);
-            _inventory.VincularEstrategia(fnCategoria);
+            _items.VincularEstrategia(fnPrioridad);
         }
 
         public override AgentObservation GetCurrentState(

@@ -56,6 +56,7 @@ namespace ScpAgent.Bot
         public FakeConnection _fakeConn { get; set; }
         public GameObject _botGameObject { get; set; }
         public CharacterController _cc { get; set; }
+        public bool _firstRespawn { get; set; } = true;
 
 
         // ── Estado de la acción ─────────────────────────────────────────────────
@@ -123,7 +124,7 @@ namespace ScpAgent.Bot
             PendingReward      = 0f;
             EpisodioTerminado  = false;
             _ultimaAccion      = 12;
-
+            
             try 
             {
                 _strategy?.InicializarMovimiento(_botGameObject, _cc);
@@ -150,15 +151,13 @@ namespace ScpAgent.Bot
             if (_strategy is IAgentRoleStrategyHuman humanStrategy)
             {
                 _sensores?.VincularEstrategia(
-                tipo => humanStrategy.CalcularPrioridadItem(tipo),
-                tipo => humanStrategy.CategorizarItem(tipo)
+                    tipo => humanStrategy.CalcularPrioridadItem(tipo)
                 );
             }
             else
             {
                 _sensores?.VincularEstrategia(
-                    tipo => 0f, 
-                    tipo => "Ninguno"
+                    tipo => 0f
                     // Alternativa: Si creaste un método específico para limpiar:
                     // _sensores?.DesvincularEstrategia();
                 );
@@ -170,7 +169,6 @@ namespace ScpAgent.Bot
         }
         public void SetDependencias(FakeConnection fakeConn, GameObject botGameObject, Player player, CharacterController cc, RoleTypeId role)
         {
-            Log.Info("[SCPAGENTBOT] SET_DEPENDENCIAS");
             _fakeConn = fakeConn;
             _botGameObject = botGameObject;
             _exiledPlayer = player;
@@ -186,6 +184,7 @@ namespace ScpAgent.Bot
         public void ResetEstado()
         {   
             BaseSensors.agentCacheData.Clear();
+            _firstRespawn = true;
             // ── Estado de acción ────────────────────────────────────────────
             _ultimaAccion   = 12; // NOOP
             _lastActionTime = 0f;

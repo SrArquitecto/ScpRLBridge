@@ -3,6 +3,7 @@ using ScpAgent.Bot.Sensors.Data;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
+using PlayerRoles;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
@@ -28,8 +29,10 @@ namespace ScpAgent.Bot.Sensors.Modules
         public void Actualizar(AgentObservation obs, SensorContext ctx)
         {
             var faction = _player.Role.Team;
+            var role = _player.Role.Type;
             var pos = _player.Position;
             var camara = _player.CameraTransform.rotation.eulerAngles;
+            
             bool hasKeycard  = false;
             int playerTier  = 0;
             if (faction == PlayerRoles.Team.SCPs)
@@ -49,6 +52,9 @@ namespace ScpAgent.Bot.Sensors.Modules
                 }
                 playerTier = ModuleUtils.GetBestKeycardTier(_player); 
             }
+            bool amIHurt = false;
+            if (_player.Health <= _player.MaxHealth/2f)
+                amIHurt = true;
             string zoneStr = "Unknown";
             if (_player.CurrentRoom != null)
             {
@@ -82,18 +88,21 @@ namespace ScpAgent.Bot.Sensors.Modules
             
             obs.Faction     = faction;
             obs.FactionId   = (float)faction/8f;
+            obs.Role        = role;
+            obs.RoleId      = (float)role/31f;
             obs.PosX        = pos.x;
             obs.PosY        = pos.y; 
             obs.PosZ        = pos.z;
-            obs.RelX        = relX;
-            obs.RelY        = relY;
-            obs.RelZ        = relZ;
+            obs.PosicionLocalX        = relX;
+            obs.PosicionLocalY        = relY;
+            obs.PosicionLocalZ        = relZ;
             obs.GPSX        = Mathf.Clamp(pos.x / RANGO_MAPA, -1f, 1f);
             obs.GPSY        = Mathf.Clamp(pos.y / RANGO_MAPA, -1f, 1f);
             obs.GPSZ        = Mathf.Clamp(pos.z / RANGO_MAPA, -1f, 1f);
             obs.Yaw         = camara.y;
             obs.Pitch       = camara.x;
             obs.Health      = _player.Health / _player.MaxHealth;
+            obs.AmIHurt     = amIHurt;
             obs.Zone        = zoneStr;
             obs.Room        = roomStr;
             obs.HasKeycard  = hasKeycard;

@@ -127,4 +127,17 @@ public static class ModuleUtils
             return tier;
         }     // implementa tu lógica
    // implementa tu lógica
+
+    public static string CategorizarItem(ItemType tipo)
+    {
+        string s = tipo.ToString();
+        if (s.StartsWith("Gun"))              return "Weapon";
+        if (s.StartsWith("Ammo"))             return "Ammo";
+        if (s.StartsWith("Armor"))            return "Armor";
+        if (s.Contains("Keycard"))            return "Keycard";
+        if (s.Contains("SCP"))                return "SCP";
+        if (s == "Medkit" || s == "Painkillers" || s == "Adrenaline") return "Medical";
+        if (s.StartsWith("Grenade") || s == "SCP018") return "Tactical";
+        return "Other";
+    }
 }

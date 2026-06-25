@@ -28,11 +28,11 @@ namespace ScpAgent.Bot.Sensors.Modules
     }
     public interface ISensorItemsModule : ISensorModule
     {
-        void VincularEstrategia(Func<ItemType, float> fnPrioridad, Func<ItemType, string> fnCategoria);
+        void VincularEstrategia(Func<ItemType, float> fnPrioridad);
     }
     public interface ISensorInventoryModule : ISensorModule
     {
-        void VincularEstrategia(Func<ItemType, string> fnCategoria);
+
     }
     public interface ISensorVelocityModule : ISensorModule
     {
@@ -40,5 +40,11 @@ namespace ScpAgent.Bot.Sensors.Modules
         void SetLastYaw(float yaw);
         void SetLastPitch(float pitch);
     }
-   
+    public interface ISensorRoomGraphModule : ISensorModule
+    {
+        public bool RegistrarTransicion(Room oldRoom, Room newRoom);
+        public int GetVisitCount(Room room);
+        public int TotalSalasDescubiertas();
+
+    }
 }

@@ -89,6 +89,7 @@ namespace ScpAgent.Bot.Sensors.Modules
 
             // ── 1. Marcar todos como no vistos este ciclo ─────────────────
             _memoria.MarcarTodosNoVistos();
+            int TotalPlayers = ReferenceHub.AllHubs.Count - 1;
             //Log.Info($"{}");
             // ── 2. Detección directa: FOV + raycast (Bucle 'for' anti-GC) ──
             foreach (var hub in ReferenceHub.AllHubs)
@@ -134,7 +135,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 totalCount++;
             }
             // ── 3. Añadir jugadores recordados ────────────────────────────
-            _idsAEliminar.Clear();
+            //_idsAEliminar.Clear();
             foreach (var kv in _memoria.Entradas)
             {
                 if (kv.Value.VistoEsteCiclo) continue;
@@ -142,14 +143,14 @@ namespace ScpAgent.Bot.Sensors.Modules
                 float antiguedad = ahora - kv.Value.UltimoTimestamp;
                 if (antiguedad > TIEMPO_OLVIDO)
                 {
-                    _idsAEliminar.Add(kv.Key);
+                    //_idsAEliminar.Add(kv.Key);
                     continue;
                 }
 
                 var playerObj = Player.Get(kv.Key);
                 if (playerObj == null || !playerObj.IsAlive || playerObj.GameObject == null)
                 {
-                    _idsAEliminar.Add(kv.Key);
+                    //_idsAEliminar.Add(kv.Key);
                     continue;
                 }
 
@@ -178,7 +179,9 @@ namespace ScpAgent.Bot.Sensors.Modules
             }
 
             int maxPlayers = Math.Min(totalCount, _pool.Length);
-
+            int countNeutrals = 0;
+            int countFriends = 0;
+            int countEnemies = 0;
             for (int i = 0; i < maxPlayers; i++)
             {
                 var item   = _poolTemporal[i];
@@ -221,6 +224,12 @@ namespace ScpAgent.Bot.Sensors.Modules
                 pd.RelZ     = relPos.z / RANGO_RADAR;
 
                 pd.Hostilidad = _CalcularHostilidad(_player, target);
+                if (pd.Hostilidad == 0f)
+                    countNeutrals++;
+                else if (pd.Hostilidad == 1f)
+                    countEnemies++;
+                else
+                    countFriends++;
 
                 if (!item.EsRecordado)
                 {
@@ -245,6 +254,9 @@ namespace ScpAgent.Bot.Sensors.Modules
 
                 obs.NearPlayers.Add(pd);
             }
+            obs.CountFriends = (float)countFriends/(float)TotalPlayers;
+            obs.CountNeutrals = (float)countNeutrals/(float)TotalPlayers;
+            obs.CountEnemies = (float)countEnemies/(float)TotalPlayers;
         }
  
         // ── API pública extra ────────────────────────────────────────────
