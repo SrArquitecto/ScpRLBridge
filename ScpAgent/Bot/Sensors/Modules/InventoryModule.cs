@@ -84,7 +84,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 slotIndex++;
             }
 
-            obs.InventorySlots = 8 - slotIndex;
+            obs.InventorySlots = (8f - (float)slotIndex) /8f;
 
             // Munición en reserva — sistema separado del inventario
             try
@@ -96,11 +96,11 @@ namespace ScpAgent.Bot.Sensors.Modules
                 obs.CountGrenades = (float)countGrenades/3f;
                 obs.CountScpItems = (float)countScpItems/3f;
                 obs.CountOthers   = (float)countOthers/3f;
-                obs.Ammo9x19    = _player.GetAmmo(AmmoType.Nato9);
-                obs.Ammo12gauge = _player.GetAmmo(AmmoType.Ammo12Gauge);
-                obs.Ammo556x45  = _player.GetAmmo(AmmoType.Nato556);
-                obs.Ammo762x39  = _player.GetAmmo(AmmoType.Nato762);
-                obs.Ammo44cal   = _player.GetAmmo(AmmoType.Ammo44Cal);
+                obs.Ammo9x19    = (float)_player.GetAmmo(AmmoType.Nato9)/300f;
+                obs.Ammo12gauge = (float)_player.GetAmmo(AmmoType.Ammo12Gauge)/300f;
+                obs.Ammo556x45  = (float)_player.GetAmmo(AmmoType.Nato556)/300f;
+                obs.Ammo762x39  = (float)_player.GetAmmo(AmmoType.Nato762)/300f;
+                obs.Ammo44cal   = (float)_player.GetAmmo(AmmoType.Ammo44Cal)/300f;
             }
             catch { }
         }

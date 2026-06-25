@@ -44,7 +44,7 @@ namespace ScpAgent.Bot.Sensors.Data
 
 
         public List<InventoryItemData> Inventory { get; set; } = new List<InventoryItemData>(32);
-        public int   InventorySlots  { get; set; } // slots libres (max 8)
+        public float   InventorySlots  { get; set; } // slots libres (max 8)
             // Munición en reserva por tipo — separada del inventario
         public float CountKeycards { get; set; } 
         public float CountFirearms { get; set; } 
@@ -53,11 +53,11 @@ namespace ScpAgent.Bot.Sensors.Data
         public float CountGrenades { get; set; } 
         public float CountScpItems { get; set; } 
         public float CountOthers   { get; set; } 
-        public int   Ammo9x19        { get; set; }
-        public int   Ammo12gauge     { get; set; }
-        public int   Ammo556x45      { get; set; }
-        public int   Ammo762x39      { get; set; }
-        public int   Ammo44cal       { get; set; }
+        public float   Ammo9x19        { get; set; }
+        public float   Ammo12gauge     { get; set; }
+        public float   Ammo556x45      { get; set; }
+        public float   Ammo762x39      { get; set; }
+        public float   Ammo44cal       { get; set; }
 
 
 
@@ -304,14 +304,14 @@ namespace ScpAgent.Bot.Sensors.Data
                                                                                                                                                                                                                                             
          public static GraphNodeData Pad() => new GraphNodeData                                                                                                                                                                             
          {                                                                                                                                                                                                                                  
-             Id = -1, TypeId = 0,                                                                                                                                                                                                           
+             Id = 0, TypeId = 0,                                                                                                                                                                                                           
              RelX = 0f,
              RelY = 0f,
              RelZ = 0f,                                                                                                                                                                                                       
              PosX = 0f,
              PosY = 0f,
              PosZ = 0f,                                                                                                                                                                                                       
-             Prioridad = 0f, Distancia = 9999f, DistNorm = 1f,                                                                                                                                                                              
+             Prioridad = 0f, Distancia = 0f, DistNorm = 0f,                                                                                                                                                                              
              VisitCount = 0, Antiguedad = 0f,                                                                                                                                                                                               
              EsActual = 0f,
              TieneEnemigo = 0f,

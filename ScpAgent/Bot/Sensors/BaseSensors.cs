@@ -80,6 +80,7 @@ namespace ScpAgent.Bot.Sensors
             _modules.Add(_whiskers);
             _modules.Add(_basic);
             _modules.Add(_aim);
+            _modules.Add(_graph);
         }
 
         /// <summary>

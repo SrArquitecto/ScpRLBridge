@@ -62,11 +62,11 @@ namespace ScpAgent.Bot.Sensors.Modules
             velLat = localVel.x;      // Derecha (+) o Izquierda (-)
             velVer = worldVelocity.y; // Altura real del mundo (Y global). Si no sube/baja, será 0.0
 
-            obs.AngVelYaw = angVelYaw;
-            obs.AngVelPitch = angVelPitch;
-            obs.LinVel = velLin;
-            obs.LatVel = velLat;
-            obs.VerVel = velVer;
+            obs.AngVelYaw = angVelYaw/900f;
+            obs.AngVelPitch = angVelPitch/900f;
+            obs.LinVel = velLin/ 5.4052f;
+            obs.LatVel = velLat/ 5.4052f;
+            obs.VerVel = velVer/ 9.81f;
             _lastPos = posActual;
         }
 

@@ -110,6 +110,10 @@ public static class JsonUtils
         sb.Append(",\"CountNeutrals\":"); AppendFloat(sb, obs.CountNeutrals, 1);
         sb.Append(",\"ClosetEnemyDistance\":"); AppendFloat(sb, obs.ClosestEnemyDistance, 3);
 
+        /*
+
+        Actualizado con grafos
+
         AppendList(sb, "NearRooms", obs.NearRooms, (builder, r) => {
             builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\"");
             builder.Append(",\"Id\":").Append(r.Id);
@@ -128,6 +132,8 @@ public static class JsonUtils
             builder.Append(",\"EsRecordado\":").Append(r.EsRecordado ? "true" : "false");
             builder.Append(",\"Antiguedad\":"); AppendFloat(builder, r.Antiguedad, 2);
         });
+        
+        */
 
         AppendList(sb, "NearDoors", obs.NearDoors, (builder, d) => {
             builder.Append("\"Name\":\"").Append(d.Name ?? "").Append("\",\"ColliderName\":\"").Append(d.ColliderName ?? "");
