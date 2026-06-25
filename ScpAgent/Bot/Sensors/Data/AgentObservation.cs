@@ -31,12 +31,14 @@ namespace ScpAgent.Bot.Sensors.Data
         public float AngVelYaw { get; set; }
         public float AngVelPitch { get; set; }
         public float TimeLastAction { get; set; }
+        public float RoundTimeRemaining { get; set; }
         public int CanInteract { get; set; }
         public int LastAction { get; set; }
         public float Health { get; set; }
         public bool AmIHurt { get; set; }
         public string Zone { get; set; }
         public string Room { get; set; }
+        public int CurrentRoomTypeId { get; set; }
         public bool HasKeycard { get; set; }
         public int KeycardTier { get; set; }
 
@@ -69,6 +71,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public float CountEnemies { get; set; }
         public float CountFriends { get; set; }
         public float CountNeutrals { get; set; }
+        public float ClosestEnemyDistance { get; set; }
         public int TotalRooms => NearRooms.Count;
 
         // Datos del Raycast de apuntado (Aim)
@@ -88,6 +91,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public float[] WhiskerType { get; set; } = new float[8]; // tipo codificado
 
         public float  DamageReceived  { get; set; }  // normalizado 0-1 (/ MaxHealth)
+        public float  TimeSinceLastDamage { get; set; }
         public string DamageType      { get; set; }  // "Firearm", "Explosion", "Scp", "Fall", "Unknown"
         public float  DamageDirX      { get; set; }  // vector normalizado hacia el atacante (X)
         public float  DamageDirZ      { get; set; }  // vector normalizado hacia el atacante (Z)

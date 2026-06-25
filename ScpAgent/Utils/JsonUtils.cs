@@ -12,13 +12,13 @@ public static class JsonUtils
     {
         if (obs == null) return "{}";
 
-        // Inicializamos con mayor capacidad debido a las nuevas listas de inventario y datos extendidos
         StringBuilder sb = new StringBuilder(8192);
         sb.Append("{");
-        
-        // Físicas y GPS (Precisión 3 decimales)
+
         sb.Append("\"Faccion\":\"").Append(obs.Faction.ToString() ?? "Unknown").Append("\",");
         sb.Append("\"FactionId\":"); AppendFloat(sb, obs.FactionId, 3); sb.Append(",");
+        sb.Append("\"Role\":\"").Append(obs.Role.ToString() ?? "Unknown").Append("\",");
+        sb.Append("\"RoleId\":"); AppendFloat(sb, obs.RoleId, 3); sb.Append(",");
         sb.Append("\"PosX\":"); AppendFloat(sb, obs.PosX, 3); sb.Append(",");
         sb.Append("\"PosY\":"); AppendFloat(sb, obs.PosY, 3); sb.Append(",");
         sb.Append("\"PosZ\":"); AppendFloat(sb, obs.PosZ, 3); sb.Append(",");
@@ -28,8 +28,7 @@ public static class JsonUtils
         sb.Append("\"GPSX\":"); AppendFloat(sb, obs.GPSX, 3); sb.Append(",");
         sb.Append("\"GPSY\":"); AppendFloat(sb, obs.GPSY, 3); sb.Append(",");
         sb.Append("\"GPSZ\":"); AppendFloat(sb, obs.GPSZ, 3); sb.Append(",");
-        
-        // Rotación y Velocidad (Precisión 2 decimales)
+
         sb.Append("\"Yaw\":"); AppendFloat(sb, obs.Yaw, 2); sb.Append(",");
         sb.Append("\"Pitch\":"); AppendFloat(sb, obs.Pitch, 2); sb.Append(",");
         sb.Append("\"VerVel\":"); AppendFloat(sb, obs.VerVel, 2); sb.Append(",");
@@ -37,27 +36,34 @@ public static class JsonUtils
         sb.Append("\"LinVel\":"); AppendFloat(sb, obs.LinVel, 2); sb.Append(",");
         sb.Append("\"AngVelYaw\":"); AppendFloat(sb, obs.AngVelYaw, 2); sb.Append(",");
         sb.Append("\"AngVelPitch\":"); AppendFloat(sb, obs.AngVelPitch, 2); sb.Append(",");
-        
-        // Estado del Jugador
+
         sb.Append("\"Health\":"); AppendFloat(sb, obs.Health, 1); sb.Append(",");
+        sb.Append("\"AmIHurt\":").Append(obs.AmIHurt ? "true" : "false").Append(",");
         sb.Append("\"Zone\":\"").Append(obs.Zone ?? "").Append("\",");
         sb.Append("\"Room\":\"").Append(obs.Room ?? "").Append("\",");
+        sb.Append("\"CurrentRoomTypeId\":").Append(obs.CurrentRoomTypeId).Append(",");
         sb.Append("\"HasKeycard\":").Append(obs.HasKeycard ? "true" : "false").Append(",");
         sb.Append("\"KeycardTier\":").Append(obs.KeycardTier).Append(",");
         sb.Append("\"CanInteract\":").Append(obs.CanInteract).Append(",");
         sb.Append("\"LastAction\":").Append(obs.LastAction).Append(",");
         sb.Append("\"TimeLastAction\":"); AppendFloat(sb, obs.TimeLastAction, 3); sb.Append(",");
+        sb.Append("\"RoundTimeRemaining\":"); AppendFloat(sb, obs.RoundTimeRemaining, 2); sb.Append(",");
         sb.Append("\"Reward\":"); AppendFloat(sb, obs.Reward, 4); sb.Append(",");
-        
-        // Inventario y Municiones en Reserva
+
         sb.Append("\"InventorySlots\":").Append(obs.InventorySlots).Append(",");
         sb.Append("\"Ammo9x19\":").Append(obs.Ammo9x19).Append(",");
         sb.Append("\"Ammo12gauge\":").Append(obs.Ammo12gauge).Append(",");
         sb.Append("\"Ammo556x45\":").Append(obs.Ammo556x45).Append(",");
         sb.Append("\"Ammo762x39\":").Append(obs.Ammo762x39).Append(",");
-        sb.Append("\"Ammo44cal\":").Append(obs.Ammo44cal);
+        sb.Append("\"Ammo44cal\":").Append(obs.Ammo44cal).Append(",");
+        sb.Append("\"CountKeycards\":"); AppendFloat(sb, obs.CountKeycards, 1); sb.Append(",");
+        sb.Append("\"CountFirearms\":"); AppendFloat(sb, obs.CountFirearms, 1); sb.Append(",");
+        sb.Append("\"CountMedicals\":"); AppendFloat(sb, obs.CountMedicals, 1); sb.Append(",");
+        sb.Append("\"CountArmor\":"); AppendFloat(sb, obs.CountArmor, 1); sb.Append(",");
+        sb.Append("\"CountGrenades\":"); AppendFloat(sb, obs.CountGrenades, 1); sb.Append(",");
+        sb.Append("\"CountScpItems\":"); AppendFloat(sb, obs.CountScpItems, 1); sb.Append(",");
+        sb.Append("\"CountOthers\":"); AppendFloat(sb, obs.CountOthers, 1);
 
-        // Lista de Inventario
         AppendList(sb, "Inventory", obs.Inventory, (builder, item) => {
             builder.Append("\"Type\":\"").Append(item.Type ?? "").Append("\"");
             builder.Append(",\"Category\":\"").Append(item.Category ?? "").Append("\"");
@@ -65,8 +71,7 @@ public static class JsonUtils
             builder.Append(",\"IsEquipped\":").Append(item.IsEquipped ? "true" : "false");
             builder.Append(",\"Ammo\":").Append(item.Ammo);
         });
-        
-        // Datos de Aim y Hit
+
         sb.Append(",\"AimTarget\":"); AppendFloat(sb, obs.AimTarget, 2); sb.Append(",");
         sb.Append("\"AimDistance\":"); AppendFloat(sb, obs.AimDistance, 3); sb.Append(",");
         sb.Append("\"AimRoom\":\"").Append(obs.AimRoom ?? "").Append("\",");
@@ -79,13 +84,12 @@ public static class JsonUtils
         sb.Append("\"ForwardZ\":"); AppendFloat(sb, obs.ForwardZ, 3);
 
         sb.Append(",\"DamageReceived\":"); AppendFloat(sb, obs.DamageReceived, 3);
+        sb.Append(",\"TimeSinceLastDamage\":"); AppendFloat(sb, obs.TimeSinceLastDamage, 3);
         sb.Append(",\"DamageType\":\"").Append(obs.DamageType ?? "None").Append("\"");
         sb.Append(",\"DamageDirX\":"); AppendFloat(sb, obs.DamageDirX, 3);
         sb.Append(",\"DamageDirZ\":"); AppendFloat(sb, obs.DamageDirZ, 3);
         sb.Append(",\"AttackerInMemory\":").Append(obs.AttackerInMemory ? "true" : "false");
 
-
-        // Entidades y Entorno Cercano con Persistencia de Memoria
         AppendList(sb, "NearPlayers", obs.NearPlayers, (builder, pd) => {
             builder.Append("\"Role\":\"").Append(pd.Role ?? "").Append("\"");
             builder.Append(",\"Team\":\"").Append(pd.Team ?? "").Append("\"");
@@ -100,6 +104,11 @@ public static class JsonUtils
             builder.Append(",\"EsRecordado\":").Append(pd.EsRecordado ? "true" : "false");
             builder.Append(",\"Antiguedad\":"); AppendFloat(builder, pd.Antiguedad, 2);
         });
+
+        sb.Append(",\"CountEnemies\":"); AppendFloat(sb, obs.CountEnemies, 1);
+        sb.Append(",\"CountFriends\":"); AppendFloat(sb, obs.CountFriends, 1);
+        sb.Append(",\"CountNeutrals\":"); AppendFloat(sb, obs.CountNeutrals, 1);
+        sb.Append(",\"ClosetEnemyDistance\":"); AppendFloat(sb, obs.ClosestEnemyDistance, 3);
 
         AppendList(sb, "NearRooms", obs.NearRooms, (builder, r) => {
             builder.Append("\"Nombre\":\"").Append(r.Nombre ?? "").Append("\"");
@@ -143,6 +152,7 @@ public static class JsonUtils
             builder.Append(",\"IsClosed\":").Append(l.IsClosed ? "true" : "false");
             builder.Append(",\"CanUse\":").Append(l.CanUse ? "true" : "false");
             builder.Append(",\"CurrentLevel\":").Append(l.CurrentLevel);
+            builder.Append(",\"IsInElevator\":").Append(l.IsInElevator ? "true" : "false");
             builder.Append(",\"RelX\":"); AppendFloat(builder, l.RelX, 3);
             builder.Append(",\"RelY\":"); AppendFloat(builder, l.RelY, 3);
             builder.Append(",\"RelZ\":"); AppendFloat(builder, l.RelZ, 3);
@@ -167,14 +177,12 @@ public static class JsonUtils
         }
         sb.Append("]");
 
-        // Filtrado de interacción exclusivo para roles humanos
         if (
-            rol == RoleTypeId.ChaosConscript || rol == RoleTypeId.ChaosMarauder || rol == RoleTypeId.ChaosRepressor || 
+            rol == RoleTypeId.ChaosConscript || rol == RoleTypeId.ChaosMarauder || rol == RoleTypeId.ChaosRepressor ||
             rol == RoleTypeId.ChaosRifleman || rol == RoleTypeId.NtfCaptain || rol == RoleTypeId.NtfPrivate || rol == RoleTypeId.NtfSergeant ||
             rol == RoleTypeId.NtfSpecialist || rol == RoleTypeId.FacilityGuard || rol == RoleTypeId.ClassD || rol == RoleTypeId.Scientist
         )
         {
-            // SUSTITUCIÓN: Se procesa 'NearItems' mapeando la estructura ItemData completa
             AppendList(sb, "NearItems", obs.NearItems, (builder, item) => {
                 builder.Append("\"Type\":\"").Append(item.Type ?? "").Append("\"");
                 builder.Append(",\"Category\":\"").Append(item.Category ?? "").Append("\"");
@@ -206,15 +214,50 @@ public static class JsonUtils
                 builder.Append(",\"Antiguedad\":"); AppendFloat(builder, l.Antiguedad, 2);
             });
         }
-        
+
+        AppendList(sb, "GraphNodes", obs.GraphNodes, (builder, n) => {
+            builder.Append("\"Id\":").Append(n.Id);
+            builder.Append(",\"TypeId\":").Append(n.TypeId);
+            builder.Append(",\"RelX\":"); AppendFloat(builder, n.RelX, 3);
+            builder.Append(",\"RelY\":"); AppendFloat(builder, n.RelY, 3);
+            builder.Append(",\"RelZ\":"); AppendFloat(builder, n.RelZ, 3);
+            builder.Append(",\"PosX\":"); AppendFloat(builder, n.PosX, 3);
+            builder.Append(",\"PosY\":"); AppendFloat(builder, n.PosY, 3);
+            builder.Append(",\"PosZ\":"); AppendFloat(builder, n.PosZ, 3);
+            builder.Append(",\"Prioridad\":"); AppendFloat(builder, n.Prioridad, 2);
+            builder.Append(",\"Distancia\":"); AppendFloat(builder, n.Distancia, 3);
+            builder.Append(",\"DistNorm\":"); AppendFloat(builder, n.DistNorm, 3);
+            builder.Append(",\"VisitCount\":").Append(n.VisitCount);
+            builder.Append(",\"Antiguedad\":"); AppendFloat(builder, n.Antiguedad, 2);
+            builder.Append(",\"EsActual\":"); AppendFloat(builder, n.EsActual, 1);
+            builder.Append(",\"TieneEnemigo\":"); AppendFloat(builder, n.TieneEnemigo, 1);
+            builder.Append(",\"TieneLoot\":"); AppendFloat(builder, n.TieneLoot, 1);
+            builder.Append(",\"PuertaBloq\":"); AppendFloat(builder, n.PuertaBloq, 1);
+        });
+
+        sb.Append(",\"GraphAdjacency\":[");
+        bool firstAdj = true;
+        for (int i = 0; i < 16; i++) {
+            for (int j = 0; j < 16; j++) {
+                if (!firstAdj) sb.Append(",");
+                AppendFloat(sb, obs.GraphAdjacency[i, j], 1);
+                firstAdj = false;
+            }
+        }
+        sb.Append("]");
+
+        sb.Append(",\"GraphMask\":[");
+        for (int i = 0; i < 16; i++) {
+            AppendFloat(sb, obs.GraphMask[i], 1);
+            if (i < 15) sb.Append(",");
+        }
+        sb.Append("]");
+
         sb.Append(",\"Done\":").Append(obs.Done ? "true" : "false");
         sb.Append("}");
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Formatea e inyecta un float en el StringBuilder con precisión fija de decimales SIN generar Garbage Collector.
-    /// </summary>
     private static void AppendFloat(StringBuilder sb, float val, int decimals)
     {
         if (float.IsNaN(val) || float.IsInfinity(val))
@@ -272,4 +315,3 @@ public static class JsonUtils
         sb.Append("]");
     }
 }
-

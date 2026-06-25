@@ -88,6 +88,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             
             obs.Faction     = faction;
             obs.FactionId   = (float)faction/8f;
+            obs.CurrentRoomTypeId = (int)_player.CurrentRoom.Type;
+            obs.RoundTimeRemaining = (float)Round.ElapsedTime.TotalSeconds;
             obs.Role        = role;
             obs.RoleId      = (float)role/31f;
             obs.PosX        = pos.x;

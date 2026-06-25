@@ -182,6 +182,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             int countNeutrals = 0;
             int countFriends = 0;
             int countEnemies = 0;
+            float closestEnemyDistance = 1f;
             for (int i = 0; i < maxPlayers; i++)
             {
                 var item   = _poolTemporal[i];
@@ -190,7 +191,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 // Seguridad extra en caso de recolección de red intermedia
                 if (target == null || target.Role == null) continue; 
                 
-                var pd     = _pool[i]; // INDEXACIÓN CORREGIDA: Usa 'i' para evitar desfases con el bucle
+                var pd = _pool[i]; // INDEXACIÓN CORREGIDA: Usa 'i' para evitar desfases con el bucle
 
                 // OPTIMIZACIÓN: Evitar asignaciones por .ToString() usando la caché del diccionario de la clase
                 if (!_roleCache.TryGetValue(target.Role.Type, out string roleStr))
@@ -224,12 +225,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 pd.RelZ     = relPos.z / RANGO_RADAR;
 
                 pd.Hostilidad = _CalcularHostilidad(_player, target);
-                if (pd.Hostilidad == 0f)
-                    countNeutrals++;
-                else if (pd.Hostilidad == 1f)
-                    countEnemies++;
-                else
-                    countFriends++;
+                
 
                 if (!item.EsRecordado)
                 {
@@ -252,12 +248,25 @@ namespace ScpAgent.Bot.Sensors.Modules
                     pd.MiradaHaciaMi =  0f;
                 }
 
+                if (pd.Hostilidad == 0f)
+                    countNeutrals++;
+                else if (pd.Hostilidad == 1f)
+                {
+                    countEnemies++;
+                    if (item.Distancia/50f < closestEnemyDistance)
+                        closestEnemyDistance = item.Distancia/50f;
+                }
+                else
+                    countFriends++;
+
                 obs.NearPlayers.Add(pd);
             }
-            obs.CountFriends = (float)countFriends/(float)TotalPlayers;
-            obs.CountNeutrals = (float)countNeutrals/(float)TotalPlayers;
-            obs.CountEnemies = (float)countEnemies/(float)TotalPlayers;
+            obs.CountFriends = (float)countFriends/(float)_pool.Length;
+            obs.CountNeutrals = (float)countNeutrals/(float)_pool.Length;
+            obs.CountEnemies = (float)countEnemies/(float)_pool.Length;
+            obs.ClosestEnemyDistance = closestEnemyDistance;
         }
+        
  
         // ── API pública extra ────────────────────────────────────────────
  
@@ -350,5 +359,6 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _          => 0f
             };
         }
+
     }
 }

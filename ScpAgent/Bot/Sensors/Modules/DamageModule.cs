@@ -50,6 +50,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 obs.DamageDirX       = _pendingDamageDir.x;
                 obs.DamageDirZ       = _pendingDamageDir.z;
                 obs.AttackerInMemory = _attackerInMemory;
+                obs.TimeSinceLastDamage = Time.time - _lastDamageTime;
             }
             else
             {
