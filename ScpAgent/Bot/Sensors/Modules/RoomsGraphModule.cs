@@ -285,7 +285,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             {
                 var p = list[i];
                 if (p.Hostilidad <= 0.5f) continue;
-                Vector3 worldPos = playerPos + new Vector3(p.RelX * 500f, p.RelY * 500f, p.RelZ * 500f);
+                Vector3 worldPos = playerPos + new Vector3(p.RelX * 50f, p.RelY * 50f, p.RelZ * 50f);
                 int salaId = GetRoomIdAtPosition(worldPos);
                 if (salaId != 0) _salasEnemigos.Add(salaId);
             }

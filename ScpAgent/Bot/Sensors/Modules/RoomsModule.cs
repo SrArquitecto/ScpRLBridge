@@ -123,7 +123,6 @@ namespace ScpAgent.Bot.Sensors.Modules
                 if (distancia > 500f) continue;
 
                 float prioridad = 0;
-
                 // --- LÓGICA DINÁMICA DE PRIORIDADES ---
                 switch (sala.Type)
                 {

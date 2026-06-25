@@ -73,7 +73,10 @@ namespace ScpAgent.Bot
         }
 
         public void SpawnearEnNuevaRonda(RoleTypeId role = RoleTypeId.ClassD)
-        {   
+        {
+            if (_initDelayHandle.IsValid)
+                Timing.KillCoroutines(_initDelayHandle);
+
             int idAntiguo = _bot._exiledPlayer?.Id ?? -1;
             FakeConnection fakeConn = _bot._fakeConn;
             GameObject botGameObject = _bot._botGameObject;
@@ -109,7 +112,7 @@ namespace ScpAgent.Bot
 
             _bot.SetDependencias(fakeConn, botGameObject, ExiledPlayer, cc, role);
             // 7. Refrescar wrapper tras Role.Set
-            Timing.CallDelayed(0.5f, () =>
+            _initDelayHandle = Timing.CallDelayed(0.5f, () =>
             {
                 var freshPlayer = Player.Get(botGameObject);
                 if (freshPlayer != null)
@@ -200,11 +203,8 @@ namespace ScpAgent.Bot
                     cc = botGameObject.AddComponent<CharacterController>();
 
                 _bot.FinalizarInicio(ExiledPlayer);
-                // 7. Re-inicializar MouseLook
-
-                // 8. Notificar al AgentManager — reactiva el slot y vincula sensores frescos
-                // Esto llama AgentSlot.OnSpawnComplete() → Bot.SetPlayer() + Sensors.VincularPlayer()
                 AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
+                MapUtils.addBoundsToCache(ExiledPlayer, _bot._sensores);
 
                 // 9. Resetear estado del episodio
                 

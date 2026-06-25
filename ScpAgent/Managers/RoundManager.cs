@@ -142,9 +142,9 @@ namespace ScpAgent.Managers
         {
             _episode++;
             _roundEnding = false;
+            MapUtils.ClearBoundsCache();
             Log.Debug($"[RoundManager] 🏁 === Iniciando Episodio {_episode} ===");
 
-            // 2 ¡ENCENDEMOS EL MOTOR CENTRAL!: Le entregamos los bots activos al servidor TCP
             _plugin.ControlServer.IniciarEntrenamiento();
         }
 

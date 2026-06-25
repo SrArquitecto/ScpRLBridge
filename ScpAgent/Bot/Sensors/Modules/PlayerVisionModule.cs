@@ -219,10 +219,10 @@ namespace ScpAgent.Bot.Sensors.Modules
                     : target.Position;
                 Vector3 relPos = posRef - pos;
 
-                pd.Distance = item.Distancia / RANGO_RADAR;
-                pd.RelX     = relPos.x / RANGO_RADAR;
-                pd.RelY     = relPos.y / RANGO_RADAR;
-                pd.RelZ     = relPos.z / RANGO_RADAR;
+                pd.Distance = item.Distancia / 50;
+                pd.RelX     = relPos.x / 50;
+                pd.RelY     = relPos.y / 50;
+                pd.RelZ     = relPos.z / 50;
 
                 pd.Hostilidad = _CalcularHostilidad(_player, target);
                 

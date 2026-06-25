@@ -30,7 +30,7 @@ namespace ScpAgent.Bot.Sensors.Modules
         
         // ── CACHÉ DE ENUMS Y COLLIDERS ──
         private static readonly Dictionary<RoomType, string> _roomCache = new Dictionary<RoomType, string>();
-        private readonly Dictionary<int, string> _colliderNameCache = new Dictionary<int, string>();
+        private static readonly Dictionary<int, string> _colliderNameCache = new Dictionary<int, string>();
 
         private int    _aimCacheCounter  = AIM_CACHE_FRAMES;
         private float  _cachedAimTarget  = 0f;
@@ -53,7 +53,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             _cachedAimDoorName = "None";
             _cachedHitName     = "None";
             _cachedHitX        = 0f; _cachedHitY = 0f; _cachedHitZ = 0f;
-            _cachedForwardX    = 0f; _cachedForwardZ = 0f;              
+            _cachedForwardX    = 0f; _cachedForwardZ = 0f;
+            _colliderNameCache.Clear();
         }
 
         public void Actualizar(AgentObservation obs, SensorContext ctx)

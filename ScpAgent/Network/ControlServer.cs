@@ -20,6 +20,7 @@ using PlayerRoles;
 using ScpAgent.Bot.Sensors.Data;
 using ScpAgent.Bot.Strategies;
 using ScpAgent.Bot;
+using ScpAgent.Bot.Sensors.Intefaces;
 
 namespace ScpAgent.Network
 {
@@ -50,9 +51,13 @@ namespace ScpAgent.Network
         private readonly ConcurrentDictionary<int, SemaphoreSlim> _outgoingSignals = new ConcurrentDictionary<int, SemaphoreSlim>();
         public static event System.EventHandler<AgentHandshakeEventArgs> AgentHandshakeReceived;
         public int _frameCount = 0;
+        private Action<int, IAgentController, ISensors> _procesarDelegate;
+        private float _pendingDelta;
+
         public ControlServer()
         {
             this.Initialized = false;
+            _procesarDelegate = _ProcesarAgenteEnTick;
         }
 
         // --------------------------------------------------------------------------
@@ -480,21 +485,8 @@ namespace ScpAgent.Network
                 }
 
                 // ── Procesar mensajes ─────────────────────────────────────────
-                AgentManager.Instance.ForEachListo((agentId, bot, sensors) =>
-                {
-                    if (!_incoming.TryGetValue(agentId, out var colaIn) ||
-                        !colaIn.TryDequeue(out string msg))
-                        return; // lambda equivale a continue
-                    try
-                    {
-
-                        _ProcesarMensaje(bot, msg, agentId, deltaTime);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warn($"[ControlServer] Error Agente {agentId} ('{msg}'): {ex.Message}");
-                    }
-                });
+                _pendingDelta = deltaTime;
+                AgentManager.Instance.ForEachListo(_procesarDelegate);
 
                 // ── Medir tiempo del bucle ────────────────────────────────────
                 _frameTimeAccum += UnityEngine.Time.realtimeSinceStartup - frameStart;
@@ -507,6 +499,21 @@ namespace ScpAgent.Network
             }
         }
 
+
+        private void _ProcesarAgenteEnTick(int agentId, IAgentController bot, ISensors sensors)
+        {
+            if (!_incoming.TryGetValue(agentId, out var colaIn) ||
+                !colaIn.TryDequeue(out string msg))
+                return;
+            try
+            {
+                _ProcesarMensaje(bot, msg, agentId, _pendingDelta);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[ControlServer] Error Agente {agentId} ('{msg}'): {ex.Message}");
+            }
+        }
 
         private void _ProcesarMensaje(IAgentController bot, string msg, int agentId, float deltaTime)
         {
