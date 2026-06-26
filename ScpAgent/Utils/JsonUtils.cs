@@ -155,6 +155,8 @@ public static class JsonUtils
             builder.Append(",\"Antiguedad\":"); AppendFloat(builder, d.Antiguedad, 2);
         });
 
+        sb.Append(",\"DoorIsOpen\":").Append(obs.DoorIsOpen ? "true" : "false");
+
         AppendList(sb, "NearLifts", obs.NearLifts, (builder, l) => {
             builder.Append("\"Type\":\"").Append(l.Type ?? "").Append("\",\"Distance\":"); AppendFloat(builder, l.Distance, 3);
             builder.Append(",\"IsMoving\":").Append(l.IsMoving ? "true" : "false");
@@ -173,13 +175,23 @@ public static class JsonUtils
             builder.Append(",\"Antiguedad\":"); AppendFloat(builder, l.Antiguedad, 2);
         });
 
+        // Room nav (8 features de geometría local de la habitación actual)
+        sb.Append(",\"WallFront\":");  AppendFloat(sb, obs.WallFront, 2);
+        sb.Append(",\"WallBack\":");   AppendFloat(sb, obs.WallBack, 2);
+        sb.Append(",\"WallLeft\":");   AppendFloat(sb, obs.WallLeft, 2);
+        sb.Append(",\"WallRight\":");  AppendFloat(sb, obs.WallRight, 2);
+        sb.Append(",\"DoorDist\":");   AppendFloat(sb, obs.DoorDist, 2);
+        sb.Append(",\"DoorYawRel\":"); AppendFloat(sb, obs.DoorYawRel, 2);
+        sb.Append(",\"RoomAreaNorm\":"); AppendFloat(sb, obs.RoomAreaNorm, 2);
+        sb.Append(",\"RoomShape\":");  AppendFloat(sb, obs.RoomShape, 2);
+
+        // Whiskers: 8 rayos × [dist, type] = 16 floats
         sb.Append(",\"WhiskerDist\":[");
         for (int i = 0; i < 8; i++) {
             AppendFloat(sb, obs.WhiskerDist?[i] ?? 1f, 2);
             if (i < 7) sb.Append(",");
         }
         sb.Append("]");
-
         sb.Append(",\"WhiskerType\":[");
         for (int i = 0; i < 8; i++) {
             AppendFloat(sb, obs.WhiskerType?[i] ?? 0f, 2);

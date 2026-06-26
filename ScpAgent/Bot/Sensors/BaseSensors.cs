@@ -57,6 +57,7 @@ namespace ScpAgent.Bot.Sensors
         protected readonly ISensorModule        _lifts          = new LiftsModule();
         protected readonly ISensorVelocityModule        _velocity       = new VelocityModule();
         protected readonly ISensorModule        _whiskers       = new WhiskersModule();
+        protected readonly ISensorModule        _roomNav        = new RoomNavModule();
         protected readonly ISensorModule        _basic          = new BasicPlayerModule();
         protected readonly ISensorModule        _aim            = new AimModule();
         protected readonly ISensorRoomGraphModule _graph    = new RoomsGraphModule();
@@ -79,6 +80,7 @@ namespace ScpAgent.Bot.Sensors
             _modules.Add(_lifts);
             _modules.Add(_velocity);
             _modules.Add(_whiskers);
+            _modules.Add(_roomNav);
             _modules.Add(_basic);
             _modules.Add(_aim);
             _modules.Add(_graph);

@@ -4,6 +4,12 @@ using UnityEngine;
 
 namespace ScpAgent.Bot.Sensors.Modules
 {
+    /// <summary>
+    /// Sensor de 8 whiskers direccionales (raycast en frame del agente).
+    /// Cada whisker emite: [distancia normalizada 0-1, tipo 0/0.25/0.5/0.75/1.0].
+    /// Complementa a RoomNavModule: whiskers dan resolución angular fina + clasificación
+    /// de obstáculo; room nav da info topológica de la habitación.
+    /// </summary>
     public class WhiskersModule : ISensorModule
     {
         private Player _player;
@@ -18,8 +24,6 @@ namespace ScpAgent.Bot.Sensors.Modules
         private readonly RaycastHit[] _whiskerBuffer = new RaycastHit[1];
 
         // ── Cache de layer masks para clasificación sin GetComponentInParent ──
-        // SCP:SL usa layers específicas — cachear el layer de puertas/jugadores
-        // evita GetComponentInParent (que genera GC interno de Unity)
         private static int? _layerDoor   = null;
         private static int? _layerPlayer = null;
 
@@ -56,7 +60,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 if (hitCount > 0 &&
                     _whiskerBuffer[0].collider != null &&
                     _whiskerBuffer[0].collider.gameObject != _player.GameObject)
-                    
+
                 {
                     obs.WhiskerDist[i] = _whiskerBuffer[0].distance / WHISKER_RANGE;
                     obs.WhiskerType[i] = _ClasificarPorLayer(_whiskerBuffer[0]);
@@ -76,15 +80,13 @@ namespace ScpAgent.Bot.Sensors.Modules
         private static float _ClasificarPorLayer(RaycastHit hit)
         {
             int layer = hit.collider.gameObject.layer;
-            //Log.Info($"[Whisker] Hit layer: {LayerMask.LayerToName(hit.collider.gameObject.layer)}");
-            
+
             if (_layerDoor.HasValue   && layer == _layerDoor.Value)   return 0.25f; // Puerta
             if (_layerPlayer.HasValue && layer == _layerPlayer.Value)  return 0.5f;  // Entidad
 
             // Locker no suele tener layer propio — fallback por nombre (solo si falla layer)
-            // Esto sigue siendo barato porque solo se ejecuta si los layers anteriores no coinciden
             string name = hit.collider.gameObject.name;
-            if (name.Contains("Interactable") || name.Contains("Interactable")) return 0.75f;
+            if (name.Contains("Interactable")) return 0.75f;
 
             return 1.0f; // Pared/geometría estática
         }

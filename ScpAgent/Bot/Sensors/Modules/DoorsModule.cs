@@ -239,6 +239,13 @@ namespace ScpAgent.Bot.Sensors.Modules
         {
             obs.NearDoors.Clear();
             obs.NearDoors.AddRange(_cachedNearDoors);
+
+            // Agregado: alguna puerta visible (recordada o no) está abierta
+            obs.DoorIsOpen = false;
+            foreach (var d in _cachedNearDoors)
+            {
+                if (d.IsOpen) { obs.DoorIsOpen = true; break; }
+            }
         }
 
     }

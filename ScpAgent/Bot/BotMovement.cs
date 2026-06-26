@@ -31,6 +31,7 @@ namespace ScpAgent.Bot
         private const float VEL_CAMINAR = 3.9f;
         private const float VEL_SPRINT  = 5.4052f;
         private const float VEL_CAMARA  = 15f;
+        private const float VEL_CAMARA_PITCH = 7.5f;
 
         // ───────────────────────────────────────────────────────────────────
         // INICIALIZACIÓN
@@ -85,12 +86,10 @@ namespace ScpAgent.Bot
                 case 7:
                     _EquiparItem(player);
                     break;
-                case 8:
-                    _MoverCamara(-VEL_CAMARA);
-                    break;
-                case 9:
-                    _MoverCamara(VEL_CAMARA);
-                    break;
+                case 8:  _MoverCamara(-VEL_CAMARA, 0f);        break; // girar izquierda
+                case 9:  _MoverCamara( VEL_CAMARA, 0f);        break; // girar derecha
+                case 10: _MoverCamara(0f, -VEL_CAMARA_PITCH);        break; // mirar arriba
+                case 11: _MoverCamara(0f,  VEL_CAMARA_PITCH);        break; // mirar abajo
                 // 10, 11, 12 = NOOP
             }
         }
@@ -124,18 +123,19 @@ namespace ScpAgent.Bot
             player.Position = go.transform.position;
         }
 
-        private void _MoverCamara(float deltaYaw)
+        void _MoverCamara(float deltaYaw, float deltaPitch = 0f)
         {
             if (!_mouseLookListo || _fieldCurH == null) return;
 
             float h    = (float)_fieldCurH.GetValue(_mouseLookInstance);
             float v    = (float)_fieldCurV.GetValue(_mouseLookInstance);
             float newH = h + deltaYaw;
+            float newV = Mathf.Clamp(v + deltaPitch, -80f, 80f); // ← clamp para no romper la cámara
 
             _fieldCurH.SetValue(_mouseLookInstance,  newH);
-            _fieldCurV.SetValue(_mouseLookInstance,  v);
+            _fieldCurV.SetValue(_mouseLookInstance,  newV); // ← newV en vez de v
             _fieldSyncH.SetValue(_mouseLookInstance, newH);
-            _fieldSyncV.SetValue(_mouseLookInstance, v);
+            _fieldSyncV.SetValue(_mouseLookInstance, newV); // ← newV en vez de v
         }
 
         private void _Accion(Player player)

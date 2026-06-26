@@ -41,6 +41,8 @@ namespace ScpAgent.Bot.Sensors.Data
         public int CurrentRoomTypeId { get; set; }
         public bool HasKeycard { get; set; }
         public int KeycardTier { get; set; }
+        // Alguna puerta visible está abierta (sensor agrega, útil para reward)
+        public bool DoorIsOpen { get; set; }
 
 
         public List<InventoryItemData> Inventory { get; set; } = new List<InventoryItemData>(32);
@@ -87,6 +89,18 @@ namespace ScpAgent.Bot.Sensors.Data
         public float ForwardZ { get; set; }
 
         //"PELOS" PARA DETERMINAR SI COCHA CONTRA UN OBSTACULO
+        // Room nav: 8 features de geometría local de la habitación actual
+        // Complementan a WhiskerDist/Type: topología (puerta, forma) vs local (rayos)
+        public float WallFront    { get; set; } = 1.0f; // dist normalizada a pared delante (0=pegado, 1=sin pared 5m)
+        public float WallBack     { get; set; } = 1.0f; // dist normalizada a pared detrás
+        public float WallLeft     { get; set; } = 1.0f; // dist normalizada a pared izq
+        public float WallRight    { get; set; } = 1.0f; // dist normalizada a pared derecha
+        public float DoorDist     { get; set; } = 1.0f; // dist a puerta más cercana (0=en puerta, 1=sin puerta 10m)
+        public float DoorYawRel   { get; set; } = 0.0f; // ángulo a puerta, frame agente (-1/1, 0=delante)
+        public float RoomAreaNorm { get; set; } = 0.0f; // área de la habitación / 50m² (0-1)
+        public float RoomShape    { get; set; } = 1.0f; // ratio aspecto (max/min del footprint)
+
+        // Whiskers: 8 rayos direccionales con clasificación
         public float[] WhiskerDist { get; set; } = new float[8]; // distancia normalizada 0-1
         public float[] WhiskerType { get; set; } = new float[8]; // tipo codificado
 
