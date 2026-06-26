@@ -79,9 +79,8 @@ namespace ScpAgent.Managers
         }
         public void Inicializar()
         {
-            //_numAgentes = numAgentes;
-            //_pool       = new AgentSlot[_numAgentes];
-            for (int i = 0; i < _pool.Length; i++) 
+            _numAgentes = _pool.Length;
+            for (int i = 0; i < _pool.Length; i++)
             {
                 Log.Info($"INICIANDO AGENTE {i}");
                 _IniciarSlot(i);
@@ -99,6 +98,7 @@ namespace ScpAgent.Managers
         
         public void Reinicializar()
         {
+            Log.Info($"[AgentManager] Reinicializando {_numAgentes} agentes para nueva ronda (SpawnearEnNuevaRonda)...");
             for (int i = 0; i < _numAgentes; i++)
             {
                 _pool[i].Bot.SpawnearEnNuevaRonda();

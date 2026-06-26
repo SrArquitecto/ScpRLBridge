@@ -141,6 +141,7 @@ namespace ScpAgent.Bot
         }
         public void SpawnearEnNuevaRonda()
         {
+            _events.firstTime = true;
             _spawner.SpawnearEnNuevaRonda(_role);
         }
         public void SetStrategy(IAgentRoleStrategyBase strategy)
@@ -185,7 +186,7 @@ namespace ScpAgent.Bot
         {
             if (_exiledPlayer != null)
                 BaseSensors.agentCacheData.Remove(_exiledPlayer.Id);
-                
+
             _firstRespawn = true;
             // ── Estado de acción ────────────────────────────────────────────
             _ultimaAccion   = 12; // NOOP

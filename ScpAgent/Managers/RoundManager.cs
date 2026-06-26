@@ -111,18 +111,22 @@ namespace ScpAgent.Managers
         private IEnumerator<float> DelayedSpawnSequence()
         {
             // Esperamos 3 segundos a que Unity asiente las estructuras y pasillos generados
-            yield return Timing.WaitForSeconds(3.0f); 
+            yield return Timing.WaitForSeconds(3.0f);
 
             while (AgentManager.Instance.GetLength() < _plugin.ControlServer.NumAgentsExpected)
             {
                 Log.Info("ESPERANDO AL RESTO DE AGENTES");
-                //yield return Timing.WaitForSeconds(1.0f); 
+                //yield return Timing.WaitForSeconds(1.0f);
             }
+
+            Log.Info("[RoundManager] Forzando inicio de ronda antes de spawnear agentes (define spawn points)...");
+            CharacterClassManager.ForceRoundStart();
+            yield return Timing.WaitForSeconds(0.5f);
 
             Log.Info("[RoundManager] Red de simulación detectada. Instanciando 4 agentes...");
             SpawnearAgentes();
             Log.Debug("[RoundManager] Red de simulación detectada. Instanciando 4 agentes...");
-            
+
             // Instanciamos los 4 bots del entorno Gymnasium multiplexado
             for (int id = 0; id < 4; id++)
             {
@@ -132,9 +136,7 @@ namespace ScpAgent.Managers
 
             yield return Timing.WaitForSeconds(1.0f);
 
-            Log.Debug("[RoundManager] Todo listo. Forzando el inicio de la simulación física.");
-            CharacterClassManager.ForceRoundStart();
-            
+            Log.Debug("[RoundManager] Todo listo. Ronda y agentes en posición.");
             _isSpawning = false;
         }
 
@@ -182,11 +184,11 @@ namespace ScpAgent.Managers
         {
             if (_roundEnding) return;
             _roundEnding = true;
-            
+            _firstSpawn = true;
 
             // Apagamos el bucle central de control TCP inmediatamente para evitar lecturas fantasmas
             _plugin.ControlServer.DetenerEntrenamiento();
-            AgentManager.Instance.ResetearTodos(); 
+            AgentManager.Instance.ResetearTodos();
             //System.GC.Collect();
             Log.Debug("[RoundManager] Solicitando restablecimiento completo del mapa a EXILED...");
             Round.Restart(false, true);

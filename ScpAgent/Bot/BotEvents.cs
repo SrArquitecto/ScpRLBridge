@@ -43,7 +43,7 @@ namespace ScpAgent.Bot
                 MapUtils.addBoundsToCache(ev.Player, _bot._sensores);
                 
                 // ── REGISTRO EN EL GRAFO DE NAVEGACIÓN ──────────────────────────────
-                if (_bot._sensores?.GetGraph() != null && !firstTime)
+                if (_bot._sensores?.GetGraph() != null)
                 {
                     bool esPrimeraVisita = false;
                     esPrimeraVisita = (bool)_bot._sensores?.RegistrarTransicion(ev.OldRoom, ev.NewRoom);
@@ -55,7 +55,7 @@ namespace ScpAgent.Bot
                             // _bot._ctx?.AddReward(1.0f); // Recompensa por exploración
                     }
                 }
-                
+
                 firstTime = false;    
                 _bot._strategy?.OnRoomChanged(ev.OldRoom, ev.NewRoom);
             }

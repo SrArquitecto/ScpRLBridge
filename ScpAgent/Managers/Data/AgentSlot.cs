@@ -65,7 +65,7 @@ namespace ScpAgent.Managers.Data
             Bot.ResetearPosicionInicial(exiledPlayer.Position);
             Sensors.VincularPlayer(exiledPlayer);
             (Bot as ScpAgentBot)._sensores = Sensors;
-            (Bot as ScpAgentBot)._sensores.RegistrarTransicion(null, exiledPlayer.CurrentRoom);
+            //(Bot as ScpAgentBot)._sensores.RegistrarTransicion(null, exiledPlayer.CurrentRoom);
             IsReady = true;
         }
 

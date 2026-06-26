@@ -124,8 +124,10 @@ namespace ScpAgent.Bot
                     _bot.FinalizarInicio(freshPlayer);
                     AgentManager.Instance?.OnBotSpawnComplete(_bot._agentId, freshPlayer);
                     MapUtils.addBoundsToCache(freshPlayer, _bot._sensores);
-                    Log.Debug($"[ScpAgentBot] Bot {_bot._agentId} respawneado en nueva ronda. " +
-                            $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");
+                    Log.Info($"[ScpAgentBot] Bot {_bot._agentId} respawneado en nueva ronda. " +
+                            $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive} " +
+                            $"Pos=({freshPlayer.Position.x:F2},{freshPlayer.Position.y:F2},{freshPlayer.Position.z:F2}) " +
+                            $"Room={freshPlayer.CurrentRoom?.Type.ToString() ?? "?"}");
                 }
                 else
                 {

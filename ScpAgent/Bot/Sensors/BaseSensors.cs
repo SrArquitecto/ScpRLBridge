@@ -98,6 +98,9 @@ namespace ScpAgent.Bot.Sensors
                 _velocity.SetLastPos(_player.Position);
                 _velocity.SetLastYaw(_player.CameraTransform.rotation.eulerAngles.y);
                 _velocity.SetLastPitch(_player.CameraTransform.rotation.eulerAngles.x);
+                _lastPos   = _player.Position;
+                _lastYaw   = _player.CameraTransform.rotation.eulerAngles.y;
+                _lastPitch = _player.CameraTransform.rotation.eulerAngles.x;
             }
             foreach (var m in _modules) m.VincularPlayer(_player);
 
@@ -195,6 +198,9 @@ namespace ScpAgent.Bot.Sensors
 
         public virtual void ResetEstado()
         {
+            _lastPos   = Vector3.zero;
+            _lastYaw   = 0f;
+            _lastPitch = 0f;
             _obsCache.Clear();
             BaseSensors.agentCacheData.Clear();
             foreach (var m in _modules) m.Reset();
