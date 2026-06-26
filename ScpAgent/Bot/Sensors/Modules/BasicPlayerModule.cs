@@ -85,7 +85,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             if (ctx.HalfY > 0) relY = Mathf.Clamp(relativePos.y / ctx.HalfY, -1f, 1f);
             if (ctx.HalfZ > 0) relZ = Mathf.Clamp(relativePos.z / ctx.HalfZ, -1f, 1f);
 
-            
+            //Log.Info($"AGENTE {ctx.AgentId} -> Posicion Relativa al Centro: {relativePos}, RelX: {relX}, RelY: {relY}, RelZ: {relZ}");
             obs.Faction     = faction;
             obs.FactionId   = (float)faction/8f;
             obs.CurrentRoomTypeId = (int)_player.CurrentRoom.Type;

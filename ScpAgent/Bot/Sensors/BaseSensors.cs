@@ -193,7 +193,23 @@ namespace ScpAgent.Bot.Sensors
             AgentCacheData data;
             if (_player == null || !agentCacheData.TryGetValue(_player.Id, out data) || !data.IsDataReady)
             {
-                data = _fallbackCacheData;
+                if (_player?.CurrentRoom != null && _player.CurrentRoom.Type != Exiled.API.Enums.RoomType.Unknown)
+                {
+                    Bounds bounds = MapUtils.ObtenerBoundsTotal(_player.CurrentRoom);
+                    data = new AgentCacheData
+                    {
+                        center = bounds.center,
+                        halfX = bounds.size.x / 2f,
+                        halfY = bounds.size.y / 2f,
+                        halfZ = bounds.size.z / 2f,
+                        IsDataReady = true
+                    };
+                    agentCacheData[_player.Id] = data;
+                }
+                else
+                {
+                    data = _fallbackCacheData;
+                }
             }
             return data;
         }

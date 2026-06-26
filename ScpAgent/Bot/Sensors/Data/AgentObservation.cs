@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Exiled.API.Features;
 using PlayerRoles;
+using ScpAgent.Bot.Sensors.Data.Interfaces;
 
 namespace ScpAgent.Bot.Sensors.Data
 {
@@ -146,7 +147,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public float Antiguedad {get; set;}
     }
 
-    public class ItemData
+    public class ItemData : ISpatialData
     {
         public string Type      { get; set; }
         public string Category  { get; set; }
@@ -173,7 +174,7 @@ namespace ScpAgent.Bot.Sensors.Data
     }
 
 
-    public class DoorData
+    public class DoorData : ISpatialData
     {
         public string Type { get; set; }
         public string Name { get; set; }
@@ -193,7 +194,7 @@ namespace ScpAgent.Bot.Sensors.Data
                      
     }
 
-    public class LiftData
+    public class LiftData : ISpatialData
     {
         public string Type { get; set; }
         public float RelX { get; set; }
@@ -213,7 +214,7 @@ namespace ScpAgent.Bot.Sensors.Data
         public float Antiguedad {get; set;}
     }
 
-    public class LockerData
+    public class LockerData : ISpatialData
     {
         public string Type { get; set; }
         public float RelX { get; set; }
