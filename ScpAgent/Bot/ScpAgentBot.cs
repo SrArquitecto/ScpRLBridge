@@ -115,7 +115,6 @@ namespace ScpAgent.Bot
         {   
             _fakeConn = fakeConn;
             _spawner.Init(fakeConn, _nickname, _role);
-            _events.SuscribirEventos();
         }
         public void FinalizarInicio(Player freshPlayer)
         {
@@ -134,6 +133,7 @@ namespace ScpAgent.Bot
                 Log.Info($"[EXCEPTION] {ex}");
             }
 
+            _events.SuscribirEventos();
         }
         public void EjecutarRespawn()
         {
@@ -277,6 +277,14 @@ namespace ScpAgent.Bot
             {
                 Log.Warn($"[Bot {_agentId}] GetObs: _sensores es NULL");
                 return BaseSensors.obsVacia;
+            }
+
+            // Resetear EpisodioTerminado si el bot está vivo y el Player es válido.
+            // Si el bot está muerto, mantener EpisodioTerminado=true para que
+            // Python haga reset() y envíe RESPAWN.
+            if (_exiledPlayer != null && _exiledPlayer.IsAlive && _exiledPlayer.GameObject != null)
+            {
+                EpisodioTerminado = false;
             }
 
             return _sensores.GetCurrentState(

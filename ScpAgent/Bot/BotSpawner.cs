@@ -12,8 +12,11 @@ using ScpAgent.Bot.Data;
 using ScpAgent.Bot.Interfaces;
 using ScpAgent.Bot.Strategies.Interfaces;
 using ScpAgent.Bot.Simulation;
+using ScpAgent.Bot.Strategies.Human;
 using Exiled.API.Features.Doors;
+using Exiled.API.Enums;
 using ScpAgent.Managers;
+using ScpAgent.Managers.Data;
 
 namespace ScpAgent.Bot
 {
@@ -124,6 +127,7 @@ namespace ScpAgent.Bot
                     _bot.FinalizarInicio(freshPlayer);
                     AgentManager.Instance?.OnBotSpawnComplete(_bot._agentId, freshPlayer);
                     MapUtils.addBoundsToCache(freshPlayer, _bot._sensores);
+                    
                     Log.Info($"[ScpAgentBot] Bot {_bot._agentId} respawneado en nueva ronda. " +
                             $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive} " +
                             $"Pos=({freshPlayer.Position.x:F2},{freshPlayer.Position.y:F2},{freshPlayer.Position.z:F2}) " +
@@ -167,9 +171,6 @@ namespace ScpAgent.Bot
 
                 int idAntiguo = ExiledPlayer?.Id ?? -1;
 
-                // 1. Notificar al slot que el bot ya no está listo
-                AgentManager.Instance?.GetSlot(AgentId)?.Reset();
-
                 // 2. Cambiar a Espectador momentáneamente
                 var current = Player.Get(botGameObject);
                 if (current != null)
@@ -181,6 +182,36 @@ namespace ScpAgent.Bot
                 var respawning = Player.Get(botGameObject);
                 if (respawning != null)
                     respawning.Role.Set(role, RoleSpawnFlags.All);
+
+                // Si el rol cambió, actualizar la estrategia
+                if (_bot._role != role)
+                {
+                    var slot = AgentManager.Instance?.GetSlot(AgentId);
+                    if (slot != null)
+                    {
+                        IAgentRoleStrategyBase newStrategy;
+                        switch (role)
+                        {
+                            case RoleTypeId.ChaosRifleman:
+                            case RoleTypeId.ChaosMarauder:
+                            case RoleTypeId.ChaosConscript:
+                            case RoleTypeId.ChaosRepressor:
+                            case RoleTypeId.FacilityGuard:
+                            case RoleTypeId.NtfCaptain:
+                            case RoleTypeId.NtfPrivate:
+                            case RoleTypeId.NtfSergeant:
+                            case RoleTypeId.NtfSpecialist:
+                                newStrategy = new CombatStrategy(role);
+                                break;
+                            default:
+                                newStrategy = new SurvivorStrategy(role);
+                                break;
+                        }
+                        _bot.SetStrategy(newStrategy);
+                        slot.Strategy = newStrategy;
+                        _bot._role = role;
+                    }
+                }
 
                 yield return Timing.WaitForSeconds(0.1f);
 
@@ -199,17 +230,15 @@ namespace ScpAgent.Bot
 
                 ExiledPlayer = freshPlayer;
 
-                // 6. Asegurar CharacterController
-                CharacterController cc;
-                if (botGameObject.GetComponent<CharacterController>() == null)
+                // 6. Asegurar CharacterController y actualizar referencia en el bot
+                CharacterController cc = botGameObject.GetComponent<CharacterController>();
+                if (cc == null)
                     cc = botGameObject.AddComponent<CharacterController>();
+                _bot._cc = cc;
 
                 _bot.FinalizarInicio(ExiledPlayer);
                 AgentManager.Instance?.OnBotSpawnComplete(AgentId, freshPlayer);
                 MapUtils.addBoundsToCache(ExiledPlayer, _bot._sensores);
-
-                // 9. Resetear estado del episodio
-                
 
                 Log.Debug($"[ScpAgentBot] Bot {AgentId} respawneado. " +
                         $"Role={ExiledPlayer.Role.Type} IsAlive={ExiledPlayer.IsAlive}");

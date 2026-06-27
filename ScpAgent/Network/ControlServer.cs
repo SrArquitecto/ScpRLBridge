@@ -588,26 +588,16 @@ namespace ScpAgent.Network
         private void _ProcesarMensaje(IAgentController bot, string msg, int agentId, float deltaTime)
         {
             try {
-                try
-                {
-                    if (bot._exiledPlayer == null || 
-                        !bot._exiledPlayer.IsAlive || 
-                        bot._exiledPlayer.GameObject == null)
-                    {
-                        _EnviarObservacionVacia(agentId, bot._exiledPlayer.Role.Type);
-                        return;
-                    }
-                }
-                catch
-                {
-                    _EnviarObservacionVacia(agentId, bot._exiledPlayer.Role.Type);
-                    return;
-                }
+                // No verificar _exiledPlayer aquí - dejar que GetObservation()
+                // decida si retornar obsVacia o la observación real.
+                // El problema era que _exiledPlayer puede ser un wrapper stale
+                // de EXILED que dice IsAlive=false aunque el bot esté vivo.
+
                 if (msg == "RESPAWN")
                 {
                     bot.EjecutarRespawn();
                     // Responder con estado vacío mientras el respawn se completa
-                    _EnviarObservacionVacia(agentId, bot._exiledPlayer.Role.Type);
+                    _EnviarObservacionVacia(agentId, bot._role);
                     return;
                 }
 
@@ -621,7 +611,6 @@ namespace ScpAgent.Network
                 else if (msg == "GET_STATE")
                 {
                     // NOOP — solo devolver estado actual sin mover
-                    //Log.Info("GET_STATE");
                 }
                 else
                 {
@@ -644,7 +633,14 @@ namespace ScpAgent.Network
         private void _EnviarObservacion(IAgentController bot, int agentId, float deltaTime)
         {
             AgentObservation obs = bot.GetObservation(deltaTime);
-            string json = JsonUtils.ToJson(obs, bot._exiledPlayer.Role.Type);
+            if (obs != null && _frameCount % 100 == 0)
+                Log.Info($"[EnviarObs] Agente {agentId} NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies}");
+            // Usar bot._role en lugar de bot._exiledPlayer.Role.Type para evitar
+            // NullReferenceException si _exiledPlayer es null (wrapper stale después de respawn)
+            RoleTypeId role = bot._role;
+            if (bot._exiledPlayer != null)
+                role = bot._exiledPlayer.Role.Type;
+            string json = JsonUtils.ToJson(obs, role);
             if (_frameCount % 500 == 0)
                 Log.Info($"[Perf] JSON size Agente {agentId}: {json.Length} chars");
             

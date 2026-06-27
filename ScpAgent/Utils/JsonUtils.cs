@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using PlayerRoles;
 using ScpAgent.Bot.Sensors.Data;
 using System;
+using Exiled.API.Features;
 
 
 public static class JsonUtils
@@ -108,6 +109,7 @@ public static class JsonUtils
             builder.Append(",\"EsRecordado\":").Append(pd.EsRecordado ? "true" : "false");
             builder.Append(",\"Antiguedad\":"); AppendFloat(builder, pd.Antiguedad, 2);
         });
+        //Log.Info($"[JsonDebug] NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies} CountFriends={obs.CountFriends}");
 
         sb.Append(",\"CountEnemies\":"); AppendFloat(sb, obs.CountEnemies, 1);
         sb.Append(",\"CountFriends\":"); AppendFloat(sb, obs.CountFriends, 1);
@@ -326,8 +328,8 @@ public static class JsonUtils
 
     private static void AppendList<T>(StringBuilder sb, string key, List<T> list, System.Action<StringBuilder, T> appendAction)
     {
-        if (list == null) return;
         sb.Append(",\"").Append(key).Append("\":[");
+        if (list == null) { sb.Append("]"); return; }
         for (int i = 0; i < list.Count; i++) {
             sb.Append("{");
             appendAction(sb, list[i]);

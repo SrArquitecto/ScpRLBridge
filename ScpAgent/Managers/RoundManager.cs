@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Exiled.API.Features;
 using Exiled.Events.EventArgs.Server;
 using Exiled.Events.EventArgs.Player;
@@ -8,7 +7,6 @@ using MEC;
 using PlayerRoles;
 using UnityEngine;
 using Exiled.API.Enums;
-using ScpAgent.Bot;
 
 namespace ScpAgent.Managers
 {
@@ -18,27 +16,22 @@ namespace ScpAgent.Managers
         private int _episode = 0;
         private bool _roundEnding = false;
         private bool _isSpawning = false;
-        public readonly AgentManager _agentManager;
         public static volatile bool IsC1Enabled = false;
         public bool BotsListos { get; private set; } = false;
         private CoroutineHandle _monitorHandle;
-        private bool _firstSpawn = true;
         private bool _firstInstance = true;
-
-        // Cambiamos StateManager por nuestro diccionario definitivo de agentes de IA
-        //public Dictionary<int, Bot.ScpAgentBot> BotsActivos { get; private set; } = new Dictionary<int, Bot.ScpAgentBot>();
+        private CoroutineHandle _respawnTimerHandle;
+        private const float RESPAWN_ADVANCE_PER_TICK = 20f;
 
         public RoundManager(ScpRLPlugin plugin)
         {
             _plugin = plugin;
-            // Suscripción estricta a los eventos de EXILED para controlar los episodios
             Exiled.Events.Handlers.Server.WaitingForPlayers += OnWaitingForPlayers;
             Exiled.Events.Handlers.Server.RoundStarted += OnRoundStarted;
             Exiled.Events.Handlers.Server.RoundEnded += OnRoundEnded;
             Exiled.Events.Handlers.Player.Died += OnDied;
             Exiled.Events.Handlers.Server.EndingRound += OnEndingRound;
             _plugin.ControlServer.AllAgentsReady += OnAllAgentReady;
-            // Monitor de señales TCP cruzadas (como comandos de reinicio forzado desde Python)
             _monitorHandle = Timing.RunCoroutine(GlobalTcpMonitor());
         }
 
@@ -51,56 +44,25 @@ namespace ScpAgent.Managers
             Exiled.Events.Handlers.Server.EndingRound -= OnEndingRound;
             _plugin.ControlServer.AllAgentsReady -= OnAllAgentReady;
             Timing.KillCoroutines(_monitorHandle);
+            Timing.KillCoroutines(_respawnTimerHandle);
         }
-
-        /// <summary>
-        /// Crea e inyecta la instancia del bot en el servidor utilizando su constructor de red interno.
-        /// </summary>
-        /// 
-        private void SpawnearAgentes()
-        {
-            if (_plugin.AgentManager.NumAgentes == 0 && _firstSpawn == true) {
-                _plugin.AgentManager.Inicializar();
-                _firstSpawn = false;
-                //Log.Debug("Inicializado por primera vez --------------------------------------------------------------------------------");
-            }
-            else
-            {
-                if (_plugin.AgentManager.NumAgentes > 0 && _firstSpawn == true)
-                {
-                    _plugin.AgentManager.Reinicializar();
-                    _firstSpawn = false;
-                    Log.Debug("Inicializado -------------------------------------------------------------------------------------------------");
-                }
-
-            }
-
-        }
-
-        // --------------------------------------------------------------------------
-        // GESTIÓN DE EVENTOS Y CICLO DEL SERVIDOR
-        // --------------------------------------------------------------------------
 
         private void OnWaitingForPlayers()
-        {   
+        {
             if (_plugin.ControlServer.IsPythonConnected && !_firstInstance)
             {
                 if (_isSpawning) return;
                 _isSpawning = true;
                 _roundEnding = false;
                 
-                //Trasladado a ONRouondEnded
-                //if(_plugin.AgentManager.NumAgentes > 0)
-                    //AgentManager.Instance.ResetearTodos(); 
-
                 Timing.RunCoroutine(DelayedSpawnSequence());
             }
             else
             {
                 Log.Debug("[RoundManager] Esperando conexión de Python...");
             }
-        
         }
+
         private void OnAllAgentReady()
         {
             _plugin.ControlServer.AllAgentsReady -= OnAllAgentReady;
@@ -110,28 +72,25 @@ namespace ScpAgent.Managers
 
         private IEnumerator<float> DelayedSpawnSequence()
         {
-            // Esperamos 3 segundos a que Unity asiente las estructuras y pasillos generados
             yield return Timing.WaitForSeconds(3.0f);
 
-            while (AgentManager.Instance.GetLength() < _plugin.ControlServer.NumAgentsExpected)
+            while (_plugin.AgentManager.GetLength() < _plugin.ControlServer.NumAgentsExpected)
             {
-                Log.Info("ESPERANDO AL RESTO DE AGENTES");
-                //yield return Timing.WaitForSeconds(1.0f);
+                Log.Info("[RoundManager] Esperando al resto de agentes...");
+                yield return Timing.WaitForSeconds(0.1f);
             }
 
-            Log.Info("[RoundManager] Forzando inicio de ronda antes de spawnear agentes (define spawn points)...");
+            Log.Info("[RoundManager] Forzando inicio de ronda antes de spawnear agentes...");
             CharacterClassManager.ForceRoundStart();
             yield return Timing.WaitForSeconds(0.5f);
 
-            Log.Info("[RoundManager] Red de simulación detectada. Instanciando 4 agentes...");
-            SpawnearAgentes();
-            Log.Debug("[RoundManager] Red de simulación detectada. Instanciando 4 agentes...");
+            Log.Info("[RoundManager] Red de simulación detectada. Spawneando agentes...");
+            _plugin.AgentManager.SpawnAll();
+            Log.Debug("[RoundManager] Agentes spawneados.");
 
-            // Instanciamos los 4 bots del entorno Gymnasium multiplexado
             for (int id = 0; id < 4; id++)
             {
-                //SpawnearYRegistrarAgente(id);
-                yield return Timing.WaitForSeconds(0.2f); // Pequeña tregua para evitar saturación del motor
+                yield return Timing.WaitForSeconds(0.2f);
             }
 
             yield return Timing.WaitForSeconds(1.0f);
@@ -140,43 +99,57 @@ namespace ScpAgent.Managers
             _isSpawning = false;
         }
 
+                private IEnumerator<float> RespawnTimerLoop()
+        {
+            while (!_roundEnding)
+            {
+                try
+                {
+                    // Avanzamos el timer de ambas facciones. El juego dispara la oleada
+                    // cuando el timer supera el intervalo configurado internamente.
+                    Exiled.API.Features.Respawn.AdvanceTimer(Faction.FoundationStaff, RESPAWN_ADVANCE_PER_TICK);
+                    Exiled.API.Features.Respawn.AdvanceTimer(Faction.FoundationEnemy, RESPAWN_ADVANCE_PER_TICK);
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug($"[RoundManager] RespawnTimer: {ex.Message}");
+                }
+                yield return Timing.WaitForSeconds(1.0f);
+            }
+        }
+
+
         private void OnRoundStarted()
         {
             _episode++;
             _roundEnding = false;
             MapUtils.ClearBoundsCache();
             ScpAgent.Bot.Sensors.Modules.DoorsModule.ClearGlobalCache();
-            Log.Debug($"[RoundManager] 🏁 === Iniciando Episodio {_episode} ===");
+            Log.Debug($"[RoundManager] === Iniciando Episodio {_episode} ===");
 
             _plugin.ControlServer.IniciarEntrenamiento();
+            
+            if (_respawnTimerHandle.IsRunning)
+                Timing.KillCoroutines(_respawnTimerHandle);
+            _respawnTimerHandle = Timing.RunCoroutine(RespawnTimerLoop());
+
         }
 
         private void OnEndingRound(EndingRoundEventArgs ev)
         {
-            // Bloqueamos el fin de ronda del juego nativo. La ronda solo acaba si Python o nosotros lo decidimos.
             if (!_roundEnding)
             {
                 ev.IsAllowed = false;
-                
             }
         }
 
         private void OnDied(DiedEventArgs ev)
         {
-            // Si muere cualquier bot de entrenamiento, el episodio actual fracasa inmediatamente
             if (ev.Player == null || _roundEnding) return;
-
-            // Verificamos si el jugador fallecido es parte de nuestra red de IA
-            //if (_agentManager.GetAll().ContainsKey(ev.Player.Id) || ev.Player.Nickname.StartsWith("IA_Agent_"))
-            //{
-                //Log.Warn($"[RoundManager] El Agente {ev.Player.Nickname} ha muerto. Reiniciando episodio...");
-                //ForzarReinicioEpisodio();
-            //}
         }
 
         private void OnRoundEnded(RoundEndedEventArgs ev)
         {
-            
             ForzarReinicioEpisodio();
         }
 
@@ -184,12 +157,9 @@ namespace ScpAgent.Managers
         {
             if (_roundEnding) return;
             _roundEnding = true;
-            _firstSpawn = true;
 
-            // Apagamos el bucle central de control TCP inmediatamente para evitar lecturas fantasmas
             _plugin.ControlServer.DetenerEntrenamiento();
-            AgentManager.Instance.ResetearTodos();
-            //System.GC.Collect();
+            _plugin.AgentManager.ResetearTodos();
             Log.Debug("[RoundManager] Solicitando restablecimiento completo del mapa a EXILED...");
             Round.Restart(false, true);
         }
@@ -198,11 +168,9 @@ namespace ScpAgent.Managers
         {
             while (true)
             {
-                // Si desde Python se inyecta una petición volátil de reinicio por red
-                if (ScpRLBridge.RestartRequested) 
+                if (ScpRLBridge.RestartRequested)
                 {
                     ScpRLBridge.RestartRequested = false;
-                    _firstSpawn = true;
                     System.GC.Collect();
                     Log.Warn("[RoundManager] Petición de reinicio externa recibida.");
                     ForzarReinicioEpisodio();

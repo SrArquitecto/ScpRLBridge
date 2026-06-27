@@ -64,7 +64,19 @@ namespace ScpAgent.Bot.Sensors.Modules.Memory
             return _memoria.ContainsKey(id);
         }
         public bool TryGet(int id, out T mem) => _memoria.TryGetValue(id, out mem);
-        
+        public bool Remove(int id) => _memoria.Remove(id);
+        public void RemoveWhere(System.Func<int, T, bool> predicate)
+        {
+            var keysToRemove = new List<int>();
+            foreach (var kv in _memoria)
+            {
+                if (predicate(kv.Key, kv.Value))
+                    keysToRemove.Add(kv.Key);
+            }
+            foreach (var key in keysToRemove)
+                _memoria.Remove(key);
+        }
+
         public IEnumerable<KeyValuePair<int, T>> Entradas => _memoria;
 
         public void Clear() => _memoria.Clear();

@@ -121,10 +121,14 @@ namespace ScpAgent.Bot.Strategies.Human
         protected void OnDying(DyingEventArgs ev)
         {
             if (!_EsEsteAgente(ev.Player)) return;
-            
+
             _ctx.AddReward(-100f);
             _ctx.EndEpisode();
-           
+
+            // Marcar este bot como pendiente de cambio de rol.
+            // El juego asignará un nuevo GameObject y disparará ChangingRole.
+            ScpAgent.Bot.BotEvents.PendingRoleChanges.Add(_ctx.AgentId);
+
             Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} murió. -100 — episodio terminado.");
         }
 

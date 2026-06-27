@@ -119,6 +119,11 @@ namespace ScpAgent.Bot.Sensors
         public virtual AgentObservation GetCurrentState(
             float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {
+            
+            string p = _player != null ? _player.Nickname : "null";
+            string alive = (_player != null && _player.IsAlive) ? "alive" : "dead";
+            //Log.Info($"[BaseSensors] Agente {_agentId} _player={p} ({alive})");
+            
             if (_player == null || !_player.IsAlive || _player.GameObject == null)
                 return obsVacia;
             if (_player.CameraTransform == null)

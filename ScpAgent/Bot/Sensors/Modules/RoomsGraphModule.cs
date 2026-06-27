@@ -107,7 +107,7 @@ namespace ScpAgent.Bot.Sensors.Modules
             bool esPrimeraVisita = false;
             if (newRoom == null || newRoom.Type == RoomType.Unknown) return false;
             int newId = GetRoomUniqueId(newRoom);
-
+            bool yaVisitado = true;
             if (!_nodes.TryGetValue(newId, out var newNode))
             {
                 newNode = new RoomNode(newId, newRoom.Type, newRoom.Position,
@@ -115,11 +115,14 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _nodes[newId] = newNode;
                 esPrimeraVisita = true;
                 Log.Info($"Agente {agentId} Registrada {newRoom.Name} id; {newId}");
-            }
-
+                yaVisitado = false;
+            }        
+            
             newNode.VisitCount++;
             newNode.LastTimeVisited = Time.time;
             _currentRoomId = newId;
+
+            if (yaVisitado) return false;
 
             if (oldRoom != null && oldRoom.Type != RoomType.Unknown)
             {

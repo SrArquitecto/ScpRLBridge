@@ -101,8 +101,15 @@ namespace ScpAgent.Bot.Sensors.Modules
             obs.GPSX        = Mathf.Clamp(pos.x / RANGO_MAPA, -1f, 1f);
             obs.GPSY        = Mathf.Clamp(pos.y / RANGO_MAPA, -1f, 1f);
             obs.GPSZ        = Mathf.Clamp(pos.z / RANGO_MAPA, -1f, 1f);
-            obs.Yaw         = camara.y;
-            obs.Pitch       = camara.x;
+            
+            float yaw = camara.y;
+            if (yaw > 180f) yaw -= 360f;
+            obs.Yaw         = yaw / 180f;
+            
+            float pitch = camara.x;
+            if (pitch > 180f) pitch -= 360f;
+            obs.Pitch       = pitch / 90f;
+            
             obs.Health      = _player.Health / _player.MaxHealth;
             obs.AmIHurt     = amIHurt;
             obs.Zone        = zoneStr;

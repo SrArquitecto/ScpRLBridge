@@ -10,22 +10,12 @@ using ScpAgent.Bot.Sensors;
 using ScpAgent.Bot.Simulation;
 using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Strategies.Interfaces;
-using ScpAgent.Bot.Strategies.Human;
 using ScpAgent.Managers.Data;
 using ScpAgent.Network;
 using ScpAgent.Network.Event;
 
 namespace ScpAgent.Managers
 {
-    // ───────────────────────────────────────────────────────────────────────────
-    // SLOT — contenedor permanente de un agente + sus sensores
-    // Se crea UNA SOLA VEZ y se reutiliza entre rondas
-    // ───────────────────────────────────────────────────────────────────────────
-
-    // ───────────────────────────────────────────────────────────────────────────
-    // AGENTMANAGER
-    // Pool permanente: los slots se crean una vez al inicio y se reutilizan siempre
-    // ───────────────────────────────────────────────────────────────────────────
     public class AgentManager
     {
         public static AgentManager Instance { get; private set; }
@@ -33,6 +23,7 @@ namespace ScpAgent.Managers
 
         private AgentSlot[] _pool = null;
         private int         _numAgentes;
+        private bool        _firstSpawn = true;
 
         private readonly object _lock = new object();
 
@@ -43,75 +34,77 @@ namespace ScpAgent.Managers
             ControlServer.AgentHandshakeReceived += OnAgentHandshakeReceived;
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // INICIALIZACIÓN (una sola vez en OnEnabled)
-        // ───────────────────────────────────────────────────────────────────────
-        public void InstaciarSlot(int agentId, string rol)
-        {   
-            // 1. Si el pool es completamente nulo, lo inicializamos con el tamaño mínimo necesario
+        public void InstanciarSlot(int agentId, string rol)
+        {
             if (_pool == null)
             {
                 _pool = new AgentSlot[agentId + 1];
                 for (int i = 0; i < _pool.Length; i++)
                 {
-                    _pool[i] = new AgentSlot(i); // Inicializamos el bot base sin rol aún
+                    _pool[i] = new AgentSlot(i);
                 }
             }
 
-            // 2. Si el agente que llega supera el tamaño actual del array, lo expandimos
             if (agentId >= _pool.Length)
             {
                 int viejoTamano = _pool.Length;
                 int nuevoTamano = agentId + 1;
 
-                // Agrandamos el array de forma segura
                 System.Array.Resize(ref _pool, nuevoTamano);
                 
-                // 🚨 CRÍTICO: Inicializamos TODOS los nuevos huecos creados para evitar NullReference futuros
                 for (int i = viejoTamano; i < nuevoTamano; i++)
                 {
                     _pool[i] = new AgentSlot(i);
                 }
             }
 
-            // 3. Ahora que estamos 100% seguros de que el slot existe y no es nulo, le metemos el rol
-            _pool[agentId].Instanciar(agentId, rol);
+            _pool[agentId].Initialize(rol);
         }
+
+        public void SpawnAll()
+        {
+            if (_firstSpawn)
+            {
+                Inicializar();
+                _firstSpawn = false;
+            }
+            else
+            {
+                Reinicializar();
+            }
+        }
+
         public void Inicializar()
         {
             _numAgentes = _pool.Length;
+            Log.Debug($"[AgentManager] Pool permanente de {_numAgentes} agentes.");
+            
             for (int i = 0; i < _pool.Length; i++)
             {
-                Log.Info($"INICIANDO AGENTE {i}");
-                _IniciarSlot(i);
+                Log.Info($"[AgentManager] Iniciando conexión agente {i}");
+                _pool[i].IniciarConexion();
             }
-            Log.Debug($"[AgentManager] Pool permanente de {_numAgentes} agentes creado.");
-        }
-
-        public void Spawnear()
-        {
-            for (int i = 0; i < _numAgentes; i++)
+            
+            for (int i = 0; i < _pool.Length; i++)
             {
+                Log.Info($"[AgentManager] Spawneando agente {i}");
                 _pool[i].Bot.EjecutarRespawn();
             }
         }
-        
+
         public void Reinicializar()
         {
-            Log.Info($"[AgentManager] Reinicializando {_numAgentes} agentes para nueva ronda (SpawnearEnNuevaRonda)...");
+            Log.Info($"[AgentManager] Reinicializando {_numAgentes} agentes para nueva ronda...");
             for (int i = 0; i < _numAgentes; i++)
             {
                 _pool[i].Bot.SpawnearEnNuevaRonda();
             }
         }
-        
+
         public int GetLength()
         {
-            return _pool.Length;
+            return _pool?.Length ?? 0;
         }
-        // ───────────────────────────────────────────────────────────────────────
-        // ENTRE RONDAS — resetear, no recrear
-        // ───────────────────────────────────────────────────────────────────────
 
         public void ResetearTodos()
         {
@@ -140,28 +133,18 @@ namespace ScpAgent.Managers
                      $"({NumListos}/{_numAgentes})");
         }
 
-
-
-        // ───────────────────────────────────────────────────────────────────────
-        // CONSULTAS
-        // ───────────────────────────────────────────────────────────────────────
-
-        public AgentSlot         GetSlot(int agentId)
+        public AgentSlot GetSlot(int agentId)
             => _ValidarId(agentId) ? _pool[agentId] : null;
 
-        public IAgentController  GetBot(int agentId)
+        public IAgentController GetBot(int agentId)
             => _ValidarId(agentId) ? _pool[agentId]?.Bot : null;
 
-        public ISensors      GetSensors(int agentId)
+        public ISensors GetSensors(int agentId)
             => _ValidarId(agentId) ? _pool[agentId]?.Sensors : null;
 
-        public bool              EstaListo(int agentId)
+        public bool EstaListo(int agentId)
             => _ValidarId(agentId) && _pool[agentId]?.IsReady == true;
 
-        /// <summary>
-        /// Itera sobre slots listos SIN crear colecciones nuevas.
-        /// Usar en el BucleMaestro en vez de GetBotsListos().
-        /// </summary>
         public void ForEachListo(Action<int, IAgentController, ISensors> action)
         {
             for (int i = 0; i < _pool.Length; i++)
@@ -172,10 +155,6 @@ namespace ScpAgent.Managers
             }
         }
 
-        /// <summary>
-        /// Diccionario de bots listos.
-        /// NO llamar cada frame — solo cuando cambia el conjunto de agentes activos.
-        /// </summary>
         public Dictionary<int, IAgentController> GetBotsListos()
         {
             var result = new Dictionary<int, IAgentController>(_numAgentes);
@@ -200,86 +179,29 @@ namespace ScpAgent.Managers
             }
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // APAGADO (solo en Plugin.OnDisabled)
-        // ───────────────────────────────────────────────────────────────────────
-
         public void Destruir()
-        {   
+        {
             ControlServer.AgentHandshakeReceived -= OnAgentHandshakeReceived;
             if (_pool == null) return;
 
             for (int i = 0; i < _pool.Length; i++)
             {
-                try   { 
-                    _pool[i]?.Bot?.Destruir(); 
-                    _pool[i]?.Sensors.Destruir();
-                    _pool[i]?.FakeConnection.Disconnect();
-                }
-                catch (Exception ex)
-                { Log.Error($"[AgentManager] Error destruyendo agente {i}: {ex.Message}"); }
+                _pool[i]?.Destruir();
             }
 
             Array.Clear(_pool, 0, _pool.Length);
             Log.Debug("[AgentManager] Pool destruido.");
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // CREACIÓN INTERNA (privada, solo en Inicializar)
-        // ───────────────────────────────────────────────────────────────────────
-        private IAgentRoleStrategyBase SetStrategy(RoleTypeId rol)
-        {
-            IAgentRoleStrategyBase strategy;
-            if (rol == RoleTypeId.ClassD || rol == RoleTypeId.Scientist)
-            {
-                
-                strategy = new SurvivorStrategy(rol);
-            }
-            else if (rol == RoleTypeId.FacilityGuard || rol == RoleTypeId.NtfCaptain || rol == RoleTypeId.NtfPrivate ||
-            rol == RoleTypeId.NtfSergeant ||rol == RoleTypeId.NtfSpecialist || rol == RoleTypeId.ChaosMarauder || 
-            rol == RoleTypeId.ChaosConscript || rol == RoleTypeId.ChaosRepressor || rol == RoleTypeId.ChaosRifleman)
-            {
-                
-                strategy = new CombatStrategy(rol);
-            }
-            else 
-                strategy = new SurvivorStrategy(rol);
-
-            return strategy;
-        }
-        private void _IniciarSlot(int agentId)
-        {
-            lock (_lock)
-            {
-                try
-                {
-                    int idFalso  = -1000 - agentId;
-                    _pool[agentId].FakeConnection = new FakeConnection(idFalso);
-                    // Bot sin ExiledPlayer válido todavía —
-                    // OnBotSpawnComplete() lo vinculará cuando Role.Set complete
-                    _pool[agentId].Bot.Init(_pool[agentId].FakeConnection);
-                    _pool[agentId].Sensors.Init();
-
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[AgentManager] Error creando slot {agentId}: {ex.Message}");
-                }
-            }
-        }
-
         private bool _ValidarId(int id)
             => _pool != null && id >= 0 && id < _pool.Length;
-
 
         public void OnAgentHandshakeReceived(object sender, AgentHandshakeEventArgs eventArgs)
         {
             lock(_lock)
             {
-                InstaciarSlot(eventArgs.AgentId, eventArgs.RoleType);
+                InstanciarSlot(eventArgs.AgentId, eventArgs.RoleType);
             }
         }
-
     }
-
 }

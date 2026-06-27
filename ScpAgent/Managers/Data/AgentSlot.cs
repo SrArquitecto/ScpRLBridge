@@ -1,5 +1,3 @@
-
-
 using Exiled.API.Features;
 using ScpAgent.Bot;
 using ScpAgent.Bot.Interfaces;
@@ -7,22 +5,18 @@ using ScpAgent.Bot.Simulation;
 using ScpAgent.Bot.Sensors.Intefaces;
 using ScpAgent.Bot.Strategies.Interfaces;
 using PlayerRoles;
-using System;
-using ScpAgent.Bot.Strategies.Human;
-using ScpAgent.Bot.Sensors;
 
 namespace ScpAgent.Managers.Data
 {
     public class AgentSlot
     {
-        public  int AgentId;
-        public  IAgentController Bot;
+        public int AgentId;
+        public IAgentController Bot;
         public RoleTypeId Rol;
         public IAgentRoleStrategyBase Strategy;
         public ISensors Sensors;
-        public  FakeConnection FakeConnection;
+        public FakeConnection FakeConnection;
 
-        // true cuando ExiledPlayer es válido y el bot puede recibir acciones
         public bool IsReady { get; private set; }
 
         public AgentSlot(int agentId)
@@ -34,44 +28,45 @@ namespace ScpAgent.Managers.Data
             Rol = RoleTypeId.CustomRole;
             FakeConnection = null;
         }
-        public AgentSlot(int agentId, IAgentController bot, ISensors sensors, FakeConnection fakeConn)
-        {
-            AgentId        = agentId;
-            Bot            = bot;
-            Sensors        = sensors;
-            FakeConnection = fakeConn;
-            IsReady        = false;
-        }
 
-        public void Instanciar(int id, string rol)
-        {   
-            Log.Info($"INSTANCIANDO AGENTE {id}");
-            SeleccionarRol(id, rol);
-            string nickname = $"IA_Agent_{id}";
-            FakeConnection = null;
-            Bot = new ScpAgentBot(nickname, id, Rol);
+        public void Initialize(string roleName)
+        {
+            Log.Info($"[AgentSlot] Inicializando agente {AgentId} con rol {roleName}");
+
+            var (rol, strategy, sensors) = RoleFactory.CreateForRole(roleName, AgentId);
+            
+            Rol = rol;
+            Strategy = strategy;
+            Sensors = sensors;
+            
+            Bot = new ScpAgentBot($"IA_Agent_{AgentId}", AgentId, Rol);
             Bot.SetStrategy(Strategy);
+            Bot._sensores = Sensors;
+            
             IsReady = false;
         }
-        /// <summary>
-        /// Llamado cuando el bot ha completado el spawn y ExiledPlayer es válido.
-        /// Vincula los sensores al nuevo Player wrapper y marca el slot como listo.
-        /// </summary>
-        public void OnSpawnComplete(Player exiledPlayer)
-        {   
-            //Log.Info("OnSpawnComplete");
-            Reset();
-            //Bot.SetPlayer(exiledPlayer);
-            Bot.ResetearPosicionInicial(exiledPlayer.Position);
-            Sensors.VincularPlayer(exiledPlayer);
-            (Bot as ScpAgentBot)._sensores = Sensors;
-            //(Bot as ScpAgentBot)._sensores.RegistrarTransicion(null, exiledPlayer.CurrentRoom);
-            IsReady = true;
+
+        public void IniciarConexion()
+        {
+            FakeConnection = new FakeConnection(-1000 - AgentId);
+            Bot.Init(FakeConnection);
+            Sensors.Init();
         }
 
-        /// <summary>
-        /// Reset entre rondas — limpia el estado pero NO destruye nada.
-        /// </summary>
+        public void OnSpawnComplete(Player exiledPlayer)
+        {
+            Bot.ResetearPosicionInicial(exiledPlayer.Position);
+            Sensors.VincularPlayer(exiledPlayer);
+            IsReady = true;
+            
+            // Registrar sala inicial en el grafo (RoomChanged no se dispara en el primer spawn)
+            if (exiledPlayer.CurrentRoom != null && exiledPlayer.CurrentRoom.Type != Exiled.API.Enums.RoomType.Unknown)
+            {
+                Bot._sensores?.RegistrarTransicion(null, exiledPlayer.CurrentRoom);
+                Bot._strategy?.OnRoomChanged(null, exiledPlayer.CurrentRoom);
+            }
+        }
+
         public void Reset()
         {
             IsReady = false;
@@ -79,61 +74,18 @@ namespace ScpAgent.Managers.Data
             Sensors.ResetEstado();
         }
 
-        private void SeleccionarRol(int agentId, string role)
+        public void Destruir()
         {
-            if (role == null)
+            try
             {
-                Rol = RoleTypeId.ClassD;
-                Strategy = new SurvivorStrategy(Rol);
-                Sensors = new HumanSensors(agentId);
+                Bot?.Destruir();
+                Sensors?.Destruir();
+                FakeConnection?.Disconnect();
             }
-            else if (role == "classd")
+            catch (System.Exception ex)
             {
-                Rol = RoleTypeId.ClassD;
-                Strategy = new SurvivorStrategy(Rol);
-                Sensors = new HumanSensors(agentId);
-            }
-            else if (role == "chaos") 
-            {
-                Rol = RoleTypeId.ChaosRifleman;
-                Strategy = new CombatStrategy(Rol);
-                Sensors = new HumanSensors(agentId);
-            }
-            else if (role == "scientist")
-            {
-                Rol = RoleTypeId.Scientist;
-                Strategy = new SurvivorStrategy(Rol);
-                Sensors = new HumanSensors(agentId);
-            }
-            else if (role == "ntf") 
-            {
-                Rol = RoleTypeId.NtfPrivate;
-                Strategy = new CombatStrategy(Rol);
-                Sensors = new HumanSensors(agentId);
-            }
-            else if (role == "guard") 
-            {
-                Rol = RoleTypeId.FacilityGuard;
-                Strategy = new CombatStrategy(Rol);
-                Sensors = new HumanSensors(agentId);
+                Log.Error($"[AgentSlot] Error destruyendo agente {AgentId}: {ex.Message}");
             }
         }
-        public void ConfigurarRol(IAgentRoleStrategyBase nuevaEstrategia, ISensors nuevosSensores)
-        {
-            // Desvinculamos la estrategia anterior si existía una
-            Strategy?.OnUnbind();
-
-            Strategy = nuevaEstrategia;
-
-            //Sensors = nuevosSensores;
-
-            // Le pasamos la estrategia y los sensores directamente al bot
-            //if (Bot is ScpAgentBot scpBot)
-            //{
-                //scpBot.SetStrategy(nuevaEstrategia);
-                //scpBot.SetSensores(nuevosSensores);
-            //}
-        }
-        
     }
 }
