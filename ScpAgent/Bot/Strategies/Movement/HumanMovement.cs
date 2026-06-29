@@ -18,11 +18,14 @@ namespace ScpAgent.Bot.Strategy.Movement
     /// Encapsula toda la lógica de movimiento físico de un bot humano.
     /// Recibe el GameObject y Player como parámetros — no guarda referencias
     /// que puedan quedar stale entre respawns.
+    ///
+    /// IMPORTANTE: los bots usan DummyUtils.SpawnDummy, que crea una conexión
+    /// Mirror REAL. Esto permite que el sync visual, los dummy actions
+    /// (Shoot->Click, Reload->Click) y los action modules funcionen como
+    /// en un cliente humano, sin necesidad de reflexión sobre métodos privados.
     /// </summary>
     public class HumanMovement : BaseMovement
     {
-        // ── Campos propios de BotMovement ────────────────────────────────────
-
         // ── Velocidades ──────────────────────────────────────────────────────
         private const float VEL_CAMINAR = 3.9f;
         private const float VEL_SPRINT  = 5.4052f;
@@ -35,28 +38,11 @@ namespace ScpAgent.Bot.Strategy.Movement
 
         public HumanMovement(int agentId) : base(agentId)
         {
-            
+
         }
-
-        /// <summary>
-        /// Inicializa CharacterController y MouseLook desde el GameObject.
-        /// Llamar tras cada spawn/respawn cuando el cuerpo ya existe.
-        /// </summary>
-
 
         // ───────────────────────────────────────────────────────────────────
         // EJECUCIÓN POR TICK
-        // ───────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Ejecuta la acción física. Recibe Player y GameObject como parámetros
-        /// para evitar referencias stale entre respawns.
-        /// </summary>
-
-
-
-        // ───────────────────────────────────────────────────────────────────
-        // MOVIMIENTO Y CÁMARA (privados)
         // ───────────────────────────────────────────────────────────────────
 
         protected override void _MoverPersonaje(int accion, float deltaTime, Player player, GameObject go)
@@ -80,45 +66,33 @@ namespace ScpAgent.Bot.Strategy.Movement
             vel.y = _cc.isGrounded ? -0.5f : -9.81f;
             _cc.Move(vel * deltaTime);
 
-            // Sincronizar posición lógica de EXILED con Unity
             player.Position = go.transform.position;
         }
 
-
-        public void EquiparTarjeta(Player player)
-        {
-            _EquiparTarjeta(player);
-        }
-
-        private void _EquiparTarjeta(Player player)
-        {
-            var item = player.Items.FirstOrDefault(
-                i => i.Type.ToString().IndexOf("Keycard",
-                    StringComparison.OrdinalIgnoreCase) >= 0);
-
-            if (item != null) player.CurrentItem = item;
-        }
-
-        // ── Categorías de armas (clasificación principal / secundaria) ──────
-        // NOTA: Se excluyen GunShotgun y GunRevolver porque su sistema de
-        // disparo/recarga depende de protocolo cliente-servidor que los bots
-        // con FakeConnection no pueden completar. Solo armas con AutomaticActionModule.
+        // ───────────────────────────────────────────────────────────────────
+        // CATEGORÍAS DE ARMAS
+        // ───────────────────────────────────────────────────────────────────
+        // Se excluyen GunShotgun y GunRevolver por decisión del proyecto:
+        // su flujo de recarga depende de un protocolo cliente-servidor
+        // que el bot no puede completar de forma fiable.
         private static readonly HashSet<ItemType> _armasPrimarias = new HashSet<ItemType>
         {
-            ItemType.GunE11SR,     // rifle
-            ItemType.GunLogicer,   // MG
-            ItemType.GunAK,        // rifle
-            ItemType.GunFRMG0,     // MG
-            ItemType.GunA7,        // rifle
+            ItemType.GunE11SR,
+            ItemType.GunLogicer,
+            ItemType.GunAK,
+            ItemType.GunFRMG0,
+            ItemType.GunA7,
+            ItemType.GunShotgun
         };
 
         private static readonly HashSet<ItemType> _armasSecundarias = new HashSet<ItemType>
         {
-            ItemType.GunCOM15,     // pistola
-            ItemType.GunCOM18,     // pistola
-            ItemType.GunCom45,     // pistola
-            ItemType.GunFSP9,      // SMG
-            ItemType.GunCrossvec,  // SMG
+            ItemType.GunCOM15,
+            ItemType.GunCOM18,
+            ItemType.GunCom45,
+            ItemType.GunFSP9,
+            ItemType.GunCrossvec,
+            ItemType.GunRevolver
         };
 
         private static readonly HashSet<ItemType> _medicamentos = new HashSet<ItemType>
@@ -136,85 +110,87 @@ namespace ScpAgent.Bot.Strategy.Movement
             ItemType.SCP018,
         };
 
-        // Cualquier cosa que empiece por "Gun" o sea MicroHID/ParticleDisruptor
-        private static bool _EsCualquierArma(ItemType t)
+        // ───────────────────────────────────────────────────────────────────
+        // EQUIPAR ITEMS
+        // ───────────────────────────────────────────────────────────────────
+        // Con DummyUtils.SpawnDummy, player.CurrentItem = item ya actualiza
+        // el visual correctamente (la SyncVar llega al cliente real a través
+        // de la conexión Mirror del dummy). No hace falta tocar CurInstance.
+
+        public void EquiparTarjeta(Player player)
         {
-            string s = t.ToString();
-            return s.StartsWith("Gun") || s == "MicroHID" || s == "ParticleDisruptor";
+            _EquiparTarjeta(player);
         }
 
-        private static bool _EsArmaPrincipal(ItemType t) => _EsCualquierArma(t) && !_armasSecundarias.Contains(t);
-        private static bool _EsArmaSecundaria(ItemType t) => _armasSecundarias.Contains(t);
-        private static bool _EsMedicamento(ItemType t) => _medicamentos.Contains(t);
-        private static bool _EsGranada(ItemType t) => _granadas.Contains(t);
+        private void _EquiparTarjeta(Player player)
+        {
+            var item = player.Items.FirstOrDefault(
+                i => i.Type.ToString().IndexOf("Keycard",
+                    StringComparison.OrdinalIgnoreCase) >= 0);
 
-        // ── Tirar item equipado ─────────────────────────────────────────────
+            if (item != null) player.CurrentItem = item;
+        }
+
+        public void EquiparArmaPrincipal(Player player)
+        {
+            _EquiparPorCategoria(player, t => _armasPrimarias.Contains(t));
+        }
+
+        public void EquiparArmaSecundaria(Player player)
+        {
+            _EquiparPorCategoria(player, t => _armasSecundarias.Contains(t));
+        }
+
+        public void EquiparMedicamento(Player player)
+        {
+            _EquiparPorCategoria(player, t => _medicamentos.Contains(t));
+        }
+
+        public void EquiparGranada(Player player)
+        {
+            _EquiparPorCategoria(player, t => _granadas.Contains(t));
+        }
+
+        // ───────────────────────────────────────────────────────────────────
+        // TIRAR ITEM EQUIPADO
+        // ───────────────────────────────────────────────────────────────────
+        // Con DummyUtils el bot tiene cliente Mirror real, así que
+        // player.DropHeldItem() funciona como en un jugador humano:
+        // dropea el item, crea un pickup en el suelo y se quita del inventario.
+
         public void TirarItem(Player player)
         {
-            _TirarItem(player);
-        }
-
-        private void _TirarItem(Player player)
-        {
-            try
-            {
-                //player.DropHeldItem();
-                Log.Info("Tiro item");
-            }
+            try { Log.Info("Tirar");} //player.DropHeldItem(); }
             catch (Exception ex)
             {
                 Log.Debug($"[HumanMovement] TirarItem: {ex.Message}");
             }
         }
 
-        // ── Equipar arma principal ──────────────────────────────────────────
-        public void EquiparArmaPrincipal(Player player)
-        {
-            _EquiparPorCategoria(player, _EsArmaPrincipal, "arma principal");
-        }
-
-        // ── Equipar arma secundaria ────────────────────────────────────────
-        public void EquiparArmaSecundaria(Player player)
-        {
-            _EquiparPorCategoria(player, _EsArmaSecundaria, "arma secundaria");
-        }
-
-        // ── Equipar medicamento ────────────────────────────────────────────
-        public void EquiparMedicamento(Player player)
-        {
-            _EquiparPorCategoria(player, _EsMedicamento, "medicamento");
-        }
-
-        // ── Equipar granada ────────────────────────────────────────────────
-        public void EquiparGranada(Player player)
-        {
-            _EquiparPorCategoria(player, _EsGranada, "granada");
-        }
-
-        private void _EquiparPorCategoria(Player player, Func<ItemType, bool> pred, string nombreCategoria)
+        private void _EquiparPorCategoria(Player player, Func<ItemType, bool> pred)
         {
             if (player == null || player.Items == null) return;
 
             try
             {
                 var item = player.Items.FirstOrDefault(i => i != null && pred(i.Type));
-                if (item == null) return;
-
-                // Para bots con FakeConnection, setear solo CurrentItem (que llama
-                // ServerSelectItem) no basta: el SyncVar Mirror se envía a
-                // FakeConnection.Send (vacío) y el render del viewmodel no se actualiza.
-                // Forzamos la actualización local directa.
-                player.Inventory.ServerSelectItem(item.Serial);
-                if (item.Base != null)
-                    player.Inventory.CurInstance = item.Base;
+                if (item != null) player.CurrentItem = item;
             }
             catch (Exception ex)
             {
-                Log.Debug($"[HumanMovement] _EquiparPorCategoria({nombreCategoria}): {ex.Message}");
+                Log.Debug($"[HumanMovement] _EquiparPorCategoria: {ex.Message}");
             }
         }
 
-        // ── Recargar arma equipada ─────────────────────────────────────────
+        // ───────────────────────────────────────────────────────────────────
+        // RECARGAR
+        // ───────────────────────────────────────────────────────────────────
+        // DummyUtils.SpawnDummy crea un cliente Mirror real, por lo que
+        // el protocolo cliente→servidor para revolver/escopeta funciona.
+        // Pero como hemos excluido esas armas del set equipable, basta con
+        // la dummy action (que ahora SÍ existe) + fallback al ServerTryReload
+        // por reflexión sobre IReloaderModule (la interfaz no lo expone).
+
         public void RecargarArma(Player player)
         {
             _RecargarArma(player);
@@ -226,49 +202,54 @@ namespace ScpAgent.Bot.Strategy.Movement
             {
                 if (!(player.CurrentItem?.Base is InventorySystem.Items.Firearms.Firearm baseFirearm)) return;
 
-                // No recargar si ya está en proceso
                 if (baseFirearm.TryGetModule<IReloaderModule>(out var reloader) && reloader.IsReloadingOrUnloading)
                     return;
 
                 baseFirearm.TryGetModule<IPrimaryAmmoContainerModule>(out var primaryAmmo);
                 int maxAmmo = primaryAmmo?.AmmoMax ?? 0;
                 int currentAmmo = primaryAmmo?.AmmoStored ?? 0;
-
-                // ── Caso especial: revólver (RevolverClipReloaderModule) ───────
-                // ServerTryReload abre el cilindro pero la transferencia de ammo
-                // requiere confirmación del cliente, que el bot nunca envía.
-                // Solución: rellenar el cilindro directamente + marcar no-recargando.
-                if (baseFirearm.TryGetModule<RevolverClipReloaderModule>(out var revolverMod))
-                {
-                    _FillRevolver(revolverMod, primaryAmmo, maxAmmo, currentAmmo);
-                    return;
-                }
-
-                // ── Caso especial: escopeta de bombeo / doble cañón ───────────
-                // Las escopetas cargan shells al tubo + chambered en recámara.
-                // El pump action necesita ServerCycleAction en PumpActionModule.
-                object shotgunAction = null;
-                if (baseFirearm.TryGetModule<PumpActionModule>(out var pumpMod))
-                    shotgunAction = pumpMod;
-                else if (baseFirearm.TryGetModule<DoubleActionModule>(out var doubleMod))
-                    shotgunAction = doubleMod;
-                if (shotgunAction != null)
-                {
-                    _FillShotgun(baseFirearm, primaryAmmo, maxAmmo, currentAmmo, shotgunAction);
-                    return;
-                }
-
-                // Ya está lleno, nada que hacer
                 if (currentAmmo >= maxAmmo) return;
 
-                // Throttle: no intentar recargar más de 1 vez cada 0.45s
                 if (Time.time < _nextReloadAttempt) return;
                 _nextReloadAttempt = Time.time + 0.45f;
 
-                // (1) Dummy action "Reload->Click" — puede no existir para este server
+                // ── Caso revólver: bypass del protocolo cliente→servidor ─────────
+                // El ServerTryReload abre el cilindro y espera confirmación del cliente.
+                // El bot con FakeConnection nunca confirma, así que rellenamos
+                // el cilindro directamente + reseteamos IsReloading.
+                if (baseFirearm.TryGetModule<RevolverClipReloaderModule>(out var revolver))
+                {
+                    if (primaryAmmo != null)
+                        primaryAmmo.ServerModifyAmmo(maxAmmo - currentAmmo);
+                    _ResetIsReloading(revolver);
+                    return;
+                }
+
+                // ── Caso escopeta (PumpActionModule / DoubleActionModule) ─────────
+                // Similar al revólver: rellenar el tubo y chamber una shell.
+                if (baseFirearm.TryGetModule<PumpActionModule>(out var pump)
+                    || baseFirearm.TryGetModule<DoubleActionModule>(out _))
+                {
+                    if (primaryAmmo != null && currentAmmo < maxAmmo)
+                        primaryAmmo.ServerModifyAmmo(maxAmmo - currentAmmo);
+                    // Forzar AmmoStored=1 (chambered) y resetear IsReloading
+                    if (pump != null)
+                    {
+                        var t = pump.GetType();
+                        var ammoProp = t.GetProperty("AmmoStored",
+                            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        ammoProp?.SetValue(pump, 1);
+                    }
+                    if (baseFirearm.TryGetModule<IReloaderModule>(out var pumpReloader))
+                        _ResetIsReloading(pumpReloader);
+                    return;
+                }
+
+                // ── Resto de armas (rifles, pistolas, SMGs): protocolo normal ──
+                // (1) Dummy action "Reload->Click" — la forma canónica
                 bool fired = _ClickDummyAction(player, "Reload->Click");
 
-                // (2) Fallback directo: ServerTryReload en el reloader module
+                // (2) Fallback: IReloaderModule.ServerTryReload
                 if (!fired && reloader != null)
                 {
                     var mi = reloader.GetType().GetMethod("ServerTryReload",
@@ -278,75 +259,31 @@ namespace ScpAgent.Bot.Strategy.Movement
             }
             catch (Exception ex)
             {
-                Log.Debug($"[HumanMovement] RecargarArma: {ex.GetType().Name}: {ex.Message}");
+                Log.Debug($"[HumanMovement] RecargarArma: {ex.Message}");
             }
         }
 
-        // Rellena el cilindro del revólver directamente (bypaseando el protocolo
-        // cliente-servidor que requiere la confirmación del cliente).
-        private static void _FillRevolver(RevolverClipReloaderModule revolver,
-            IPrimaryAmmoContainerModule primaryAmmo, int maxAmmo, int currentAmmo)
+        // Fuerza IsReloading=false para desbloquear recargas futuras cuando
+        // el bot ha rellenado ammo por bypass (revólver/escopeta).
+        private static void _ResetIsReloading(IReloaderModule reloader)
         {
             try
             {
-                // Rellenar el cilindro (incremento positivo = añadir balas)
-                if (primaryAmmo != null && currentAmmo < maxAmmo)
-                    primaryAmmo.ServerModifyAmmo(maxAmmo - currentAmmo);
-
-                // Forzar el estado a "no recargando" — la animación ya empezó
-                // y no podemos hacer que el cilindro se cierre por sí solo sin
-                // la confirmación del cliente.
-                var isReloadingProp = typeof(AnimatorReloaderModuleBase).GetProperty("IsReloading",
+                var prop = typeof(AnimatorReloaderModuleBase).GetProperty("IsReloading",
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                isReloadingProp?.SetValue(revolver, false);
+                prop?.SetValue(reloader, false);
             }
-            catch (Exception ex)
-            {
-                Log.Debug($"[HumanMovement] _FillRevolver: {ex.Message}");
-            }
+            catch { /* ignore */ }
         }
 
-        // Rellena el tubo de la escopeta y chamber una bala en la recámara.
-        private static void _FillShotgun(InventorySystem.Items.Firearms.Firearm baseFirearm,
-            IPrimaryAmmoContainerModule primaryAmmo, int maxAmmo, int currentAmmo, object actionModule)
-        {
-            try
-            {
-                // Rellenar el tubo de shells
-                if (primaryAmmo != null && currentAmmo < maxAmmo)
-                    primaryAmmo.ServerModifyAmmo(maxAmmo - currentAmmo);
+        // ───────────────────────────────────────────────────────────────────
+        // USAR ITEM
+        // ───────────────────────────────────────────────────────────────────
+        // - Arma → disparar (dummy action + IHitregModule.Fire fallback)
+        // - Medicamento → Usable.Use()
+        // - Granada → player.ThrowGrenade (consume el item correctamente)
+        // - Keycard → no hacer nada (se activa al interaccionar con puerta)
 
-                // Forzar estado a "no recargando"
-                baseFirearm.TryGetModule<IReloaderModule>(out var reloader);
-                if (reloader != null)
-                {
-                    var isReloadingProp = typeof(AnimatorReloaderModuleBase).GetProperty("IsReloading",
-                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                    isReloadingProp?.SetValue(reloader, false);
-                }
-
-                // Llamar al cycle del action module (PumpActionModule.ServerCycleAction
-                // o DoubleActionModule.ServerCycleAction) para chamber la siguiente shell
-                var cycleMi = actionModule.GetType().GetMethod("ServerCycleAction",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null, Type.EmptyTypes, null);
-                cycleMi?.Invoke(actionModule, null);
-
-                // Resync del action module si es AutomaticActionModule (no debería
-                // serlo para escopetas, pero por si acaso)
-                if (actionModule is AutomaticActionModule aam) aam.ServerResync();
-            }
-            catch (Exception ex)
-            {
-                Log.Debug($"[HumanMovement] _FillShotgun: {ex.Message}");
-            }
-        }
-
-        // ── Usar item equipado ─────────────────────────────────────────────
-        // - Arma de fuego → disparar (Shoot->Click via DummyAction)
-        // - Medicamento   → curar (Usable.Use)
-        // - Granada       → lanzar (Player.ThrowGrenade)
-        // - Keycard       → no hacer nada (se usa al interaccionar con puerta)
         public void UsarItemEquipado(Player player)
         {
             _UsarItemEquipado(player);
@@ -374,9 +311,8 @@ namespace ScpAgent.Bot.Strategy.Movement
                     if (tipo != ProjectileType.None)
                     {
                         player.ThrowGrenade(tipo);
-                        // El ThrowGrenade de Exiled NO consume el item de la mano
-                        // (crea un throwable nuevo y destruye ESE). Para bots con
-                        // FakeConnection hay que quitar manualmente el item original.
+                        // ThrowGrenade de Exiled crea un throwable nuevo y destruye ESE,
+                        // no el item que tiene el bot en la mano. Hay que quitarlo manualmente.
                         try { player.RemoveHeldItem(); } catch { }
                     }
                     return;
@@ -394,16 +330,13 @@ namespace ScpAgent.Bot.Strategy.Movement
             }
         }
 
-        // ── Disparo directo via ServerShoot (sin dummy actions) ───────────
-        // Las dummy actions "Shoot->Click" no existen para bots con FakeConnection.
-        // Cada tipo de action module tiene su propio método de disparo:
-        //   - AutomaticActionModule:  ServerShoot(ReferenceHub)   [private]
-        //   - PumpActionModule:        ShootOneBarrel(bool)         [private]
-        //   - DoubleActionModule:      ShootOneBarrel(bool)         [private]
-        //   - DisruptorActionModule:   ServerFire(ReferenceHub)    [private]
-        // Los llamamos por reflexión. Para revólver/escopeta hay que pre-chamberar
-        // la bala manualmente (AmmoStored=1, OpenBolt=false) porque su mecanismo
-        // de cycling depende del cliente.
+        // ───────────────────────────────────────────────────────────────────
+        // DISPARAR
+        // ───────────────────────────────────────────────────────────────────
+        // La dummy action "Shoot->Click" ahora SÍ existe (el bot tiene cliente
+        // Mirror real). Como fallback usamos IHitregModule.Fire que registra
+        // el hit si la dummy action no está disponible para este tipo de arma.
+
         private float _nextReloadAttempt = 0f;
         private float _nextShotTime = 0f;
         private const float SHOT_COOLDOWN = 0.18f;
@@ -414,31 +347,14 @@ namespace ScpAgent.Bot.Strategy.Movement
             try
             {
                 if (!(armaEquipada.Base is InventorySystem.Items.Firearms.Firearm baseFirearm)) return;
-
-                // Cooldown entre disparos
                 if (Time.time < _nextShotTime) return;
 
-                // No disparar si ya está recargando
                 if (baseFirearm.TryGetModule<IReloaderModule>(out var reloader) && reloader.IsReloadingOrUnloading)
                     return;
 
-                // Comprobar munición: cargador + recámara. Si ambos a 0, recargar.
                 baseFirearm.TryGetModule<IPrimaryAmmoContainerModule>(out var primaryAmmo);
                 int ammoCargador = primaryAmmo?.AmmoStored ?? 0;
-
-                // Detectar el action module concreto para saber cómo pre-chamberar
-                AutomaticActionModule automatic = null;
-                PumpActionModule pump = null;
-                DoubleActionModule doubleAction = null;
-                baseFirearm.TryGetModule(out automatic);
-                baseFirearm.TryGetModule(out pump);
-                baseFirearm.TryGetModule(out doubleAction);
-
-                int ammoRecamara = 0;
-                if (automatic != null) ammoRecamara = automatic.AmmoStored;
-                else if (pump != null) ammoRecamara = pump.AmmoStored;
-                // DoubleActionModule dispara ambos cañones, no tiene AmmoStored
-                else if (doubleAction != null) ammoRecamara = 1;
+                int ammoRecamara = _GetChamberAmmo(baseFirearm);
 
                 if (ammoCargador == 0 && ammoRecamara == 0)
                 {
@@ -446,203 +362,125 @@ namespace ScpAgent.Bot.Strategy.Movement
                     return;
                 }
 
-                // Prepara la acción: amartilla, mete bala en recámara si hace falta
-                _PrepareActionForShot(baseFirearm);
+                // Prepara: amartilla + chamber si hace falta
+                _PrepareChamber(baseFirearm);
 
-                // Dispara según el action module
-                bool shotFired = false;
-                if (automatic != null)
+                // Caso revólver: ServerShoot consume de AmmoStored si la cámara tiene
+                // bala y OpenBolt=false. Si no, consume del primary (cilindro).
+                // Con dummy action "Shoot->Click" esto debería funcionar,
+                // pero pre-establecemos AmmoStored=1 y OpenBolt=false para asegurar.
+                if (baseFirearm.TryGetModule<RevolverClipReloaderModule>(out var revolver))
                 {
-                    automatic.Cocked = true;
-                    automatic.BoltLocked = false;
-                    // Para revólver: ServerShoot consume de AmmoStored (la cámara).
-                    // Si AmmoStored==0 y OpenBolt==true, consume del primary (cilindro).
-                    shotFired = _InvokeServerShoot(automatic, player.ReferenceHub, "ServerShoot");
-                }
-                else if (pump != null)
-                {
-                    // Escopeta de bombeo: usar ShootOneBarrel(bool) — método privado
-                    // que dispara un cartucho y reproduce el sonido.
-                    shotFired = _InvokeShotOneBarrel(pump, player.ReferenceHub);
-                }
-                else if (doubleAction != null)
-                {
-                    // Escopeta de doble cañón: mismo método ShootOneBarrel
-                    shotFired = _InvokeShotOneBarrel(doubleAction, player.ReferenceHub);
+                    _PrepareRevolverShot(revolver, baseFirearm, primaryAmmo);
                 }
 
-                if (shotFired)
+                // (1) Dummy action "Shoot->Click"
+                bool fired = _ClickDummyAction(player, "Shoot->Click");
+
+                // (2) Fallback: IHitregModule.Fire si la dummy action no existe
+                if (!fired && baseFirearm.TryGetModule<IHitregModule>(out var hitreg))
                 {
-                    _nextShotTime = Time.time + SHOT_COOLDOWN;
+                    hitreg.Fire(player.ReferenceHub, new BulletShotEvent(baseFirearm.ItemId, 0));
                 }
+
+                _nextShotTime = Time.time + SHOT_COOLDOWN;
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Log.Debug($"[HumanMovement] _DispararArma: {ex.GetType().Name}: {ex.Message}");
+                Log.Debug($"[HumanMovement] _DispararArma: {ex.Message}");
             }
         }
 
-        // Llama a ServerShoot(ReferenceHub) sobre un action module. Si no existe,
-        // fallback a ServerCycleAction(). Devuelve true si disparó.
-        private static bool _InvokeServerShoot(object actionModule, ReferenceHub target, string methodName)
+        // Para el revólver: cerrar el cilindro (OpenBolt=false) y chamber una bala
+        // del cilindro. Sin esto, ServerShoot falla porque AmmoStored=0.
+        // OpenBolt es read-only en AutomaticActionModule, así que usamos reflexión
+        // para setearlo en la instancia concreta.
+        private static void _PrepareRevolverShot(RevolverClipReloaderModule revolver,
+            InventorySystem.Items.Firearms.Firearm baseFirearm,
+            IPrimaryAmmoContainerModule primaryAmmo)
         {
             try
             {
-                if (actionModule == null) return false;
-                var shootMi = actionModule.GetType().GetMethod(methodName,
-                    System.Reflection.BindingFlags.Instance |
-                    System.Reflection.BindingFlags.Public |
-                    System.Reflection.BindingFlags.NonPublic,
-                    null,
-                    new[] { typeof(ReferenceHub) },
-                    null);
-                if (shootMi != null)
+                if (!baseFirearm.TryGetModule<AutomaticActionModule>(out var automatic)) return;
+                // Cerrar cilindro via reflexión
+                var openBoltProp = typeof(AutomaticActionModule).GetProperty("OpenBolt",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                openBoltProp?.SetValue(automatic, false);
+                // Chamber una bala del cilindro
+                if (automatic.AmmoStored == 0 && primaryAmmo != null && primaryAmmo.AmmoStored > 0)
                 {
-                    shootMi.Invoke(actionModule, new object[] { target });
-                    return true;
+                    _InvokeCycleAction(automatic);
                 }
-                // Fallback: ServerCycleAction() (no dispara pero cicla)
-                var cycleMi = actionModule.GetType().GetMethod("ServerCycleAction",
-                    System.Reflection.BindingFlags.Instance |
-                    System.Reflection.BindingFlags.Public |
-                    System.Reflection.BindingFlags.NonPublic,
-                    null,
-                    System.Type.EmptyTypes,
-                    null);
-                cycleMi?.Invoke(actionModule, null);
-                return false;
             }
-            catch (System.Exception ex)
-            {
-                Log.Debug($"[HumanMovement] _InvokeServerShoot: {ex.GetType().Name}: {ex.Message}");
-                return false;
-            }
+            catch { /* ignore */ }
         }
 
-        // Llama a ShootOneBarrel(bool) en PumpActionModule / DoubleActionModule
-        // para disparar un cartucho de escopeta. Pre-chambera primero.
-        private static bool _InvokeShotOneBarrel(object shotgunAction, ReferenceHub target)
+        // Devuelve el número de balas en la recámara del arma (1 si hay round
+        // chambered, 0 si no). Para armas de doble cañón, asumimos siempre 1.
+        private static int _GetChamberAmmo(InventorySystem.Items.Firearms.Firearm baseFirearm)
+        {
+            if (baseFirearm.TryGetModule<AutomaticActionModule>(out var automatic))
+                return automatic.AmmoStored;
+            if (baseFirearm.TryGetModule<PumpActionModule>(out var pump))
+                return pump.AmmoStored;
+            // DoubleActionModule no tiene AmmoStored — siempre lista
+            if (baseFirearm.TryGetModule<DoubleActionModule>(out _))
+                return 1;
+            return 0;
+        }
+
+        // Pre-chambera una bala del cargador a la recámara si está vacía.
+        // Solo AutomaticActionModule y PumpActionModule tienen este flujo.
+        private static void _PrepareChamber(InventorySystem.Items.Firearms.Firearm baseFirearm)
         {
             try
             {
-                if (shotgunAction == null) return false;
-
-                // 1) Cerrar el bolt (si está abierto) y chamberar una shell
-                var t = shotgunAction.GetType();
-                var openBoltProp = t.GetProperty("OpenBolt",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-                openBoltProp?.SetValue(shotgunAction, false);
-
-                var ammoStoredProp = t.GetProperty("AmmoStored",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-                ammoStoredProp?.SetValue(shotgunAction, 1);
-
-                // 2) Llamar a ShootOneBarrel(true) — dispara un cartucho
-                var shootMi = t.GetMethod("ShootOneBarrel",
-                    System.Reflection.BindingFlags.Instance |
-                    System.Reflection.BindingFlags.Public |
-                    System.Reflection.BindingFlags.NonPublic,
-                    null,
-                    new[] { typeof(bool) },
-                    null);
-                if (shootMi == null) return false;
-
-                shootMi.Invoke(shotgunAction, new object[] { true });
-                return true;
-            }
-            catch (System.Exception ex)
-            {
-                Log.Debug($"[HumanMovement] _InvokeShotOneBarrel: {ex.GetType().Name}: {ex.Message}");
-                return false;
-            }
-        }
-
-        private void _PrepareActionForShot(InventorySystem.Items.Firearms.Firearm baseFirearm)
-        {
-            try
-            {
-                // Detectar todos los action modules y pre-chamberar según corresponda
-                baseFirearm.TryGetModule<AutomaticActionModule>(out var automatic);
-                baseFirearm.TryGetModule<PumpActionModule>(out var pump);
-                baseFirearm.TryGetModule<DoubleActionModule>(out var doubleAction);
-                baseFirearm.TryGetModule<IPrimaryAmmoContainerModule>(out var primaryAmmo);
-
-                // Caso 1: AutomaticActionModule (rifles, pistolas, revólver)
-                if (automatic != null)
+                if (baseFirearm.TryGetModule<AutomaticActionModule>(out var automatic))
                 {
                     automatic.Cocked = true;
                     if (!automatic.OpenBolt
                         && automatic.AmmoStored <= 0
-                        && primaryAmmo != null
+                        && baseFirearm.TryGetModule<IPrimaryAmmoContainerModule>(out var primaryAmmo)
                         && primaryAmmo.AmmoStored > 0)
                     {
-                        _InvokeServerCycleAction(automatic);
+                        _InvokeCycleAction(automatic);
                     }
                     automatic.BoltLocked = false;
                     automatic.ServerResync();
                     return;
                 }
 
-                // Caso 2: PumpActionModule (escopeta de bombeo) — asegurar cámara=1
-                if (pump != null)
+                if (baseFirearm.TryGetModule<PumpActionModule>(out var pump))
                 {
                     var t = pump.GetType();
-                    var ammoProp = t.GetProperty("AmmoStored",
-                        System.Reflection.BindingFlags.Instance |
-                        System.Reflection.BindingFlags.Public |
-                        System.Reflection.BindingFlags.NonPublic);
-                    if (ammoProp != null && (int)ammoProp.GetValue(pump) == 0
-                        && primaryAmmo != null && primaryAmmo.AmmoStored > 0)
-                    {
-                        // Cerrar bolt y chamber una shell del tubo
-                        var openBoltProp = t.GetProperty("OpenBolt",
-                            System.Reflection.BindingFlags.Instance |
-                            System.Reflection.BindingFlags.Public |
-                            System.Reflection.BindingFlags.NonPublic);
-                        openBoltProp?.SetValue(pump, false);
-                        ammoProp.SetValue(pump, 1);
-                        primaryAmmo.ServerModifyAmmo(-1);  // sacar 1 shell del tubo
-                    }
-                    return;
-                }
-
-                // Caso 3: DoubleActionModule (escopeta doble) — siempre lista
-                if (doubleAction != null)
-                {
-                    var t = doubleAction.GetType();
                     var openBoltProp = t.GetProperty("OpenBolt",
-                        System.Reflection.BindingFlags.Instance |
-                        System.Reflection.BindingFlags.Public |
-                        System.Reflection.BindingFlags.NonPublic);
-                    openBoltProp?.SetValue(doubleAction, false);
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    openBoltProp?.SetValue(pump, false);
+                    var ammoProp = t.GetProperty("AmmoStored",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (ammoProp != null && (int)ammoProp.GetValue(pump) == 0)
+                    {
+                        if (baseFirearm.TryGetModule<IPrimaryAmmoContainerModule>(out var primaryAmmo)
+                            && primaryAmmo.AmmoStored > 0)
+                        {
+                            ammoProp.SetValue(pump, 1);
+                            primaryAmmo.ServerModifyAmmo(-1);
+                        }
+                    }
                     return;
                 }
             }
             catch { /* no-op */ }
         }
 
-        // Helper para _PrepareActionForShot — cicla el cerrojo
-        private static void _InvokeServerCycleAction(object actionModule)
-        {
-            try
-            {
-                if (actionModule == null) return;
-                var mi = actionModule.GetType().GetMethod("ServerCycleAction",
-                    System.Reflection.BindingFlags.Instance |
-                    System.Reflection.BindingFlags.Public |
-                    System.Reflection.BindingFlags.NonPublic,
-                    null,
-                    System.Type.EmptyTypes,
-                    null);
-                mi?.Invoke(actionModule, null);
-            }
-            catch { /* ignore */ }
-        }
+        // ───────────────────────────────────────────────────────────────────
+        // DUMMY ACTIONS
+        // ───────────────────────────────────────────────────────────────────
+        // Las dummy actions simulan input del cliente. Con DummyUtils.SpawnDummy
+        // el bot tiene una conexión Mirror real, así que las acciones SÍ están
+        // disponibles (Shoot->Click, Reload->Click, etc.).
+        // Busca por nombre (o variante de puntos/guiones) y la invoca.
 
-        // Dispara un dummy action por nombre (p.ej. "Shoot->Click", "Reload->Click").
-        // Populamos la lista con los actions del player + los del inventario
-        // (los firearms exponen "Shoot" y "Reload" aquí) y luego invocamos.
-        // Devuelve true si encontró y ejecutó el action.
         private bool _ClickDummyAction(Player player, string actionName)
         {
             try
@@ -664,7 +502,6 @@ namespace ScpAgent.Bot.Strategy.Movement
 
                 if (match.Action == null)
                 {
-                    // Búsqueda laxa: por módulo (parte antes de "->")
                     string modulo = _ModuloDeAccion(actionName);
                     if (!string.IsNullOrEmpty(modulo))
                     {
@@ -718,8 +555,26 @@ namespace ScpAgent.Bot.Strategy.Movement
         }
 
         // ───────────────────────────────────────────────────────────────────
+        // REFLECTION — ServerCycleAction
+        // ───────────────────────────────────────────────────────────────────
+        // IActionModule no expone ServerCycleAction, así que lo localizamos
+        // por reflexión en la implementación concreta (AutomaticActionModule
+        // o PumpActionModule).
+        private static void _InvokeCycleAction(object actionModule)
+        {
+            try
+            {
+                if (actionModule == null) return;
+                var mi = actionModule.GetType().GetMethod("ServerCycleAction",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, Type.EmptyTypes, null);
+                mi?.Invoke(actionModule, null);
+            }
+            catch { /* ignore */ }
+        }
+
+        // ───────────────────────────────────────────────────────────────────
         // REFLECTION — FpcMouseLook
         // ───────────────────────────────────────────────────────────────────
-
     }
 }
