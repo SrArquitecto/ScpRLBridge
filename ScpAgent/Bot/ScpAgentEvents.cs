@@ -153,9 +153,12 @@ namespace ScpAgent.Bot
             // Si el rol no cambió, no hacer nada
             if (newRole == oldRole) return;
 
+            _bot.EjecutarRespawn(ev.NewRole);
             //Log.Info($"[BotEvents] Agente {_bot._agentId} cambiando rol: {oldRole} → {newRole}");
-
+            
             // Actualizar el rol del bot
+
+            /*
             _bot._role = newRole;
 
             // Crear nueva estrategia basada en el nuevo rol
@@ -267,6 +270,7 @@ namespace ScpAgent.Bot
             }
 
             Log.Info($"[BotEvents] Agente {_bot._agentId} ahora usa estrategia: {newStrategy.GetType().Name}");
+            */
         }
 
         private  bool _EsEsteAgente(Player player)

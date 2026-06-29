@@ -6,26 +6,26 @@ using Exiled.API.Features;
 using Exiled.API.Features.Doors;
 using Mirror;
 
-namespace ScpAgent.Bot.Strategy
+namespace ScpAgent.Bot.Strategy.Movement
 {
     /// <summary>
     /// Encapsula toda la lógica de movimiento físico de un bot humano.
     /// Recibe el GameObject y Player como parámetros — no guarda referencias
     /// que puedan quedar stale entre respawns.
     /// </summary>
-    public class BaseMovement
+    public abstract class BaseMovement
     {
         // ── Campos propios de BotMovement ────────────────────────────────────
-        private CharacterController _cc;
-        private int _agentId; // solo para logs
+        protected CharacterController _cc;
+        protected int _agentId; // solo para logs
 
         // ── Reflection cache para FpcMouseLook ──────────────────────────────
-        private FieldInfo _fieldCurH;
-        private FieldInfo _fieldCurV;
-        private FieldInfo _fieldSyncH;
-        private FieldInfo _fieldSyncV;
-        private object    _mouseLookInstance;
-        private bool      _mouseLookListo = false;
+        protected FieldInfo _fieldCurH;
+        protected FieldInfo _fieldCurV;
+        protected FieldInfo _fieldSyncH;
+        protected FieldInfo _fieldSyncV;
+        protected object    _mouseLookInstance;
+        protected bool      _mouseLookListo = false;
 
         // ── Velocidades ──────────────────────────────────────────────────────
         private const float VEL_CAMINAR = 3.9f;
@@ -81,30 +81,7 @@ namespace ScpAgent.Bot.Strategy
         // MOVIMIENTO Y CÁMARA (privados)
         // ───────────────────────────────────────────────────────────────────
 
-        private void _MoverPersonaje(int accion, float deltaTime, Player player, GameObject go)
-        {
-            if (_cc == null) return;
-
-            float yawRad  = player.CameraTransform.rotation.eulerAngles.y * Mathf.Deg2Rad;
-            Vector3 fwd   = new Vector3( Mathf.Sin(yawRad), 0f,  Mathf.Cos(yawRad)).normalized;
-            Vector3 right = new Vector3( Mathf.Cos(yawRad), 0f, -Mathf.Sin(yawRad)).normalized;
-
-            Vector3 vel = accion switch
-            {
-                1 =>  fwd   * VEL_CAMINAR,
-                2 => -fwd   * VEL_CAMINAR,
-                3 => -right * VEL_CAMINAR,
-                4 =>  right * VEL_CAMINAR,
-                5 =>  fwd   * VEL_SPRINT,
-                _ =>  Vector3.zero
-            };
-
-            vel.y = _cc.isGrounded ? -0.5f : -9.81f;
-            _cc.Move(vel * deltaTime);
-
-            // Sincronizar posición lógica de EXILED con Unity
-            player.Position = go.transform.position;
-        }
+        protected abstract void _MoverPersonaje(int accion, float deltaTime, Player player, GameObject go);
 
         public void MoverCamara(int accion)
         {
@@ -117,7 +94,7 @@ namespace ScpAgent.Bot.Strategy
             }
         }
 
-        private void _MoverCamara(float deltaYaw, float deltaPitch = 0f)
+        protected void _MoverCamara(float deltaYaw, float deltaPitch = 0f)
         {
             if (!_mouseLookListo || _fieldCurH == null) return;
 
@@ -136,7 +113,7 @@ namespace ScpAgent.Bot.Strategy
         {
             _AbrirPuerta(player);
         }
-        private void _AbrirPuerta(Player player)
+        protected void _AbrirPuerta(Player player)
         {
             int layerMask = ~(1 << 13);
             if (!Physics.Raycast(
@@ -156,24 +133,12 @@ namespace ScpAgent.Bot.Strategy
                     doorVariant.NetworkTargetState = !doorVariant.TargetState;
             }
         }
-        public void EquiparTarjeta(Player player)
-        {
-            
-        }
-        private void _EquiparTarjeta(Player player)
-        {
-            var item = player.Items.FirstOrDefault(
-                i => i.Type.ToString().IndexOf("Keycard",
-                    StringComparison.OrdinalIgnoreCase) >= 0);
-
-            if (item != null) player.CurrentItem = item;
-        }
 
         // ───────────────────────────────────────────────────────────────────
         // REFLECTION — FpcMouseLook
         // ───────────────────────────────────────────────────────────────────
 
-        private void _InicializarMouseLook(GameObject go)
+        protected void _InicializarMouseLook(GameObject go)
         {
             if (go == null) return;
             try

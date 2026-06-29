@@ -4,7 +4,7 @@ using Exiled.Events.EventArgs.Player;
 using PlayerRoles;
 using UnityEngine;
 using ScpAgent.Bot.Strategies.Interfaces;
-using ScpAgent.Bot.Strategy;
+using ScpAgent.Bot.Strategy.Movement;
 
 namespace ScpAgent.Bot.Strategies.Human
 {
@@ -30,7 +30,7 @@ namespace ScpAgent.Bot.Strategies.Human
                     return;
                 }
 
-            _movimiento = new BaseMovement(_ctx.AgentId);
+            _movimiento = new HumanMovement(_ctx.AgentId);
             _movimiento.Inicializar(go, cc);
         }
 
@@ -41,7 +41,7 @@ namespace ScpAgent.Bot.Strategies.Human
             base.OnBind(ctx);
             if (_isSubscribed) return;
             if (_movimiento == null)
-                _movimiento = new BaseMovement(_ctx.AgentId);
+                _movimiento = new HumanMovement(_ctx.AgentId);
 
             // ── SUSCRIPCIÓN DE EVENTOS (Lógica de Recompensas) ──
             Exiled.Events.Handlers.Player.PickingUpItem       += OnPickup;
@@ -67,7 +67,8 @@ namespace ScpAgent.Bot.Strategies.Human
 
         public void EquiparTarjeta(Player player)
         {
-            _movimiento.EquiparTarjeta(player);
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.EquiparTarjeta(player);
         }
 
 

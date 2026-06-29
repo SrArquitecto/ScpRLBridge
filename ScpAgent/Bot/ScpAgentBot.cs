@@ -53,6 +53,7 @@ namespace ScpAgent.Bot
         public Player _exiledPlayer { get; set; }
         public string _nickname { get; set; }
         public RoleTypeId _role { get; set; }
+        public RoleTypeId _first_role { get; set;}
         public FakeConnection _fakeConn { get; set; }
         public GameObject _botGameObject { get; set; }
         public CharacterController _cc { get; set; }
@@ -97,6 +98,8 @@ namespace ScpAgent.Bot
             //Strategy = strategy;
             //_fakeConn = fakeConn; // ← recibida desde AgentManager, no creada aquí
             _role = role;
+            _first_role = role;
+
             _ctx = new AgentContext(
                 agentId:   _agentId,
                 rol:       _role,
@@ -114,7 +117,7 @@ namespace ScpAgent.Bot
         public void Init(FakeConnection fakeConn)
         {   
             _fakeConn = fakeConn;
-            _spawner.Init(fakeConn, _nickname, _role);
+            _spawner.Init(fakeConn, _nickname, _first_role);
         }
         public void FinalizarInicio(Player freshPlayer)
         {
@@ -137,12 +140,18 @@ namespace ScpAgent.Bot
         }
         public void EjecutarRespawn()
         {
-            _spawner.EjecutarRespawn(_role);
+            _spawner.EjecutarRespawn(_first_role);
         }
+
+        public void EjecutarRespawn(RoleTypeId new_role)
+        {
+            _spawner.EjecutarRespawn(new_role);
+        }
+
         public void SpawnearEnNuevaRonda()
         {
             _events.firstTime = true;
-            _spawner.SpawnearEnNuevaRonda(_role);
+            _spawner.SpawnearEnNuevaRonda(_first_role);
         }
         public void SetStrategy(IAgentRoleBaseStrategy strategy)
         {   

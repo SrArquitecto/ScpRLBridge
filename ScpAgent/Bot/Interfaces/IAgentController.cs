@@ -34,6 +34,7 @@ namespace ScpAgent.Bot.Interfaces
         void SetStrategy(IAgentRoleBaseStrategy strategy);
         void SetDependencias(Simulation.FakeConnection fakeConn, GameObject botGameObject, Player player, CharacterController cc, RoleTypeId role);
         void EjecutarRespawn();
+        void EjecutarRespawn(RoleTypeId new_role);
         void SpawnearEnNuevaRonda();
         void FinalizarInicio(Player freshPlayer);  
         void Destruir();

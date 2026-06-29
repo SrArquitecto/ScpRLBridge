@@ -3,7 +3,7 @@ using PlayerRoles;
 using ScpAgent.Bot.Strategies.Interfaces;
 using System.Collections.Generic;
 using UnityEngine;
-using ScpAgent.Bot.Strategy;
+using ScpAgent.Bot.Strategy.Movement;
 using Exiled.Events.EventArgs.Player;
 
 namespace ScpAgent.Bot.Strategies

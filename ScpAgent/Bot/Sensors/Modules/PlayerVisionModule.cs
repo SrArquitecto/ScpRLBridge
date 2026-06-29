@@ -208,6 +208,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 _poolTemporal[totalCount].Antiguedad        = 0f;
                 totalCount++;
             }
+            /*
             if (logThisFrame)
             {
                 Log.Info($"[PlayerVision] Agente {miPlayerActual.Id}: " +
@@ -218,6 +219,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                     $"dist={distFilterCount} fov={fovFilterCount} ray={raycastFilterCount} " +
                     $"total={totalCount}");
             }
+            */
             //_idsAEliminar.Clear();
             foreach (var kv in _memoria.Entradas)
             {

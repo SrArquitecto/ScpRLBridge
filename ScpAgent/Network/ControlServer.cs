@@ -702,7 +702,7 @@ namespace ScpAgent.Network
 
                 float frameStart = UnityEngine.Time.realtimeSinceStartup;
                 float deltaTime  = UnityEngine.Time.deltaTime;
-                _frameCount++;
+                //_frameCount++;
 
                 // ── MULTI-MODE: barrier (esperar a todos los agentes antes de step) ──
                 if (_isMultiMode)
@@ -742,7 +742,7 @@ namespace ScpAgent.Network
                     Log.Info($"[Perf] Mirror connections: {Mirror.NetworkServer.connections.Count}");
                     //Log.Info($"[Perf] EventosVivis: {ScpAgentEvents.TotalEventosSuscritos + BaseStrategy.TotalEventosSuscritos}");
                     Log.Info($"[Perf] Total Jugadores: {ReferenceHub.AllHubs.Count - 1}");
-                    //_frameCount = 0;
+                    _frameCount = 0;
                 }
 
                 // ── Procesar mensajes ─────────────────────────────────────────
@@ -861,8 +861,8 @@ namespace ScpAgent.Network
         private void _EnviarObservacion(IAgentController bot, int agentId, float deltaTime)
         {
             AgentObservation obs = bot.GetObservation(deltaTime);
-            //if (obs != null && _frameCount % 100 == 0)
-                //Log.Info($"[EnviarObs] Agente {agentId} NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies}");
+            if (obs != null && _frameCount % 1000 == 0)
+                Log.Info($"[EnviarObs] Agente {agentId} Role: {bot._exiledPlayer.Role.Type} Alive: {bot._exiledPlayer.IsAlive}");
             // Usar bot._role en lugar de bot._exiledPlayer.Role.Type para evitar
             // NullReferenceException si _exiledPlayer es null (wrapper stale después de respawn)
             RoleTypeId role = bot._role;
