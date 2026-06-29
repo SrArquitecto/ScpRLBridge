@@ -8,8 +8,8 @@ namespace ScpAgent.Bot
 {
     /// <summary>
     /// Traduce el ActionId numérico de Python a acciones concretas en el juego.
-    /// Curriculum 1: acciones humanas (0-12).
-    /// Curriculum 2: acciones SCP (13-15) — implementar según el SCP concreto.
+    /// Curriculum 1: acciones humanas (0-19) — incluye inventario.
+    /// Curriculum 2: acciones SCP (20-22) — implementar según el SCP concreto.
     ///
     /// IMPORTANTE: C# no necesita conocer las máscaras — eso lo gestiona Python.
     /// Si Python envía una acción inválida para el rol (bug o transición de rol),
@@ -32,10 +32,20 @@ namespace ScpAgent.Bot
         public const int PICK_ITEM        = 11;
         public const int EQUIP_KEYCARD    = 12;
 
+        // ── Inventario humano (acciones nuevas) ───────────────────────────────
+        
+        public const int DROP_ITEM             = 13;
+        public const int EQUIP_PRIMARY        = 14;
+        public const int EQUIP_SECONDARY      = 15;
+        public const int EQUIP_MEDICAL        = 16;
+        public const int EQUIP_GRENADE        = 17;
+        public const int RELOAD               = 18;
+        public const int USE_ITEM           = 19;
+
         // ── Curriculum 2 — SCPs ───────────────────────────────────────────────
-        public const int SCP_ABILITY_PRIMARY   = 13;
-        public const int SCP_ABILITY_SECONDARY = 14;
-        public const int SCP_ABILITY_TERTIARY  = 15;
+        public const int SCP_ABILITY_PRIMARY   = 20;
+        public const int SCP_ABILITY_SECONDARY = 21;
+        public const int SCP_ABILITY_TERTIARY  = 22;
 
         /// <summary>
         /// Procesa la acción recibida de Python según el rol del bot.
@@ -74,7 +84,7 @@ namespace ScpAgent.Bot
                     return true;
             }
 
-            // ── Acciones exclusivas de humanos (11-12) ────────────────────────
+            // ── Acciones exclusivas de humanos (11-19) ───────────────────────
             bool esHumano = _EsRolHumano(rol);
 
             if (actionId == PICK_ITEM)
@@ -84,14 +94,23 @@ namespace ScpAgent.Bot
                 return true;
             }
 
-            if (actionId == EQUIP_KEYCARD)
+            if (actionId >= EQUIP_KEYCARD && actionId <= USE_ITEM)
             {
                 if (!esHumano) return false;
-                if (bot._strategy is IAgentRoleHumanStrategy humanStrategy)
+                if (!(bot._strategy is IAgentRoleHumanStrategy humanStrategy)) return false;
+
+                switch (actionId)
                 {
-                    humanStrategy.EquiparTarjeta(bot._exiledPlayer);
+                    case EQUIP_KEYCARD:       humanStrategy.EquiparTarjeta(bot._exiledPlayer);         break;
+                    case USE_ITEM:            humanStrategy.UsarItemEquipado(bot._exiledPlayer);       break;
+                    case EQUIP_PRIMARY:       humanStrategy.EquiparArmaPrincipal(bot._exiledPlayer);   break;
+                    case EQUIP_SECONDARY:     humanStrategy.EquiparArmaSecundaria(bot._exiledPlayer);  break;
+                    case EQUIP_MEDICAL:       humanStrategy.EquiparMedicamento(bot._exiledPlayer);     break;
+                    case EQUIP_GRENADE:       humanStrategy.EquiparGranada(bot._exiledPlayer);         break;
+                    case RELOAD:              humanStrategy.RecargarArma(bot._exiledPlayer);           break;
+                    case DROP_ITEM:           humanStrategy.TirarItem(bot._exiledPlayer);               break;
                 }
-                
+
                 return true;
             }
 

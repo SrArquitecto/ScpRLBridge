@@ -23,7 +23,15 @@ namespace ScpAgent.Bot.Strategies.Interfaces
     public interface IAgentRoleHumanStrategy: IAgentRoleBaseStrategy
     {
         float CalcularPrioridadItem(ItemType tipo);
+
+        // Inventario
         void EquiparTarjeta(Player player);
-        
+        void EquiparArmaPrincipal(Player player);
+        void EquiparArmaSecundaria(Player player);
+        void EquiparMedicamento(Player player);
+        void EquiparGranada(Player player);
+        void TirarItem(Player player);
+        void RecargarArma(Player player);
+        void UsarItemEquipado(Player player);
     }
 }

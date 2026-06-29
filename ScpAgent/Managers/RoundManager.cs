@@ -21,7 +21,7 @@ namespace ScpAgent.Managers
         private CoroutineHandle _monitorHandle;
         private bool _firstInstance = true;
         private CoroutineHandle _respawnTimerHandle;
-        private const float RESPAWN_ADVANCE_PER_TICK = 20f;
+        private const float RESPAWN_ADVANCE_PER_TICK = 1f;
 
         public RoundManager(ScpRLPlugin plugin)
         {

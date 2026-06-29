@@ -71,6 +71,48 @@ namespace ScpAgent.Bot.Strategies.Human
                 _movimiento_humano.EquiparTarjeta(player);
         }
 
+        public void EquiparArmaPrincipal(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.EquiparArmaPrincipal(player);
+        }
+
+        public void EquiparArmaSecundaria(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.EquiparArmaSecundaria(player);
+        }
+
+        public void EquiparMedicamento(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.EquiparMedicamento(player);
+        }
+
+        public void EquiparGranada(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.EquiparGranada(player);
+        }
+
+        public void TirarItem(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.TirarItem(player);
+        }
+
+        public void RecargarArma(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.RecargarArma(player);
+        }
+
+        public void UsarItemEquipado(Player player)
+        {
+            if (_movimiento is HumanMovement _movimiento_humano)
+                _movimiento_humano.UsarItemEquipado(player);
+        }
+
 
         protected void OnPickup(PickingUpItemEventArgs ev)
         {
