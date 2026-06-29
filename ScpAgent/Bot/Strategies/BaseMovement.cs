@@ -6,14 +6,14 @@ using Exiled.API.Features;
 using Exiled.API.Features.Doors;
 using Mirror;
 
-namespace ScpAgent.Bot
+namespace ScpAgent.Bot.Strategy
 {
     /// <summary>
     /// Encapsula toda la lógica de movimiento físico de un bot humano.
     /// Recibe el GameObject y Player como parámetros — no guarda referencias
     /// que puedan quedar stale entre respawns.
     /// </summary>
-    public class BotMovement
+    public class BaseMovement
     {
         // ── Campos propios de BotMovement ────────────────────────────────────
         private CharacterController _cc;
@@ -37,7 +37,7 @@ namespace ScpAgent.Bot
         // INICIALIZACIÓN
         // ───────────────────────────────────────────────────────────────────
 
-        public BotMovement(int agentId)
+        public BaseMovement(int agentId)
         {
             _agentId = agentId;
         }
@@ -71,27 +71,10 @@ namespace ScpAgent.Bot
         /// Ejecuta la acción física. Recibe Player y GameObject como parámetros
         /// para evitar referencias stale entre respawns.
         /// </summary>
-        public void Ejecutar(int accion, float deltaTime, Player player, GameObject go)
-        {
-            if (player == null || !player.IsAlive || go == null) return;
 
-            switch (accion)
-            {
-                case 0: case 1: case 2: case 3: case 4:
-                    _MoverPersonaje(accion, deltaTime, player, go);
-                    break;
-                case 5: case 6:
-                    _Accion(player);
-                    break;
-                case 7:
-                    _EquiparItem(player);
-                    break;
-                case 8:  _MoverCamara(-VEL_CAMARA, 0f);        break; // girar izquierda
-                case 9:  _MoverCamara( VEL_CAMARA, 0f);        break; // girar derecha
-                case 10: _MoverCamara(0f, -VEL_CAMARA_PITCH);        break; // mirar arriba
-                case 11: _MoverCamara(0f,  VEL_CAMARA_PITCH);        break; // mirar abajo
-                // 10, 11, 12 = NOOP
-            }
+        public void MoverPersonaje(int accion, float deltaTime, Player player, GameObject go)
+        {
+            _MoverPersonaje(accion, deltaTime, player, go);
         }
 
         // ───────────────────────────────────────────────────────────────────
@@ -108,11 +91,11 @@ namespace ScpAgent.Bot
 
             Vector3 vel = accion switch
             {
-                0 =>  fwd   * VEL_CAMINAR,
-                1 => -fwd   * VEL_CAMINAR,
-                2 => -right * VEL_CAMINAR,
-                3 =>  right * VEL_CAMINAR,
-                4 =>  fwd   * VEL_SPRINT,
+                1 =>  fwd   * VEL_CAMINAR,
+                2 => -fwd   * VEL_CAMINAR,
+                3 => -right * VEL_CAMINAR,
+                4 =>  right * VEL_CAMINAR,
+                5 =>  fwd   * VEL_SPRINT,
                 _ =>  Vector3.zero
             };
 
@@ -123,7 +106,18 @@ namespace ScpAgent.Bot
             player.Position = go.transform.position;
         }
 
-        void _MoverCamara(float deltaYaw, float deltaPitch = 0f)
+        public void MoverCamara(int accion)
+        {
+            switch (accion)
+            {
+                case 6:  _MoverCamara(-VEL_CAMARA, 0f);        break; // girar izquierda
+                case 7:  _MoverCamara( VEL_CAMARA, 0f);        break; // girar derecha
+                case 8: _MoverCamara(0f, -VEL_CAMARA_PITCH);        break; // mirar arriba
+                case 9: _MoverCamara(0f,  VEL_CAMARA_PITCH);        break; // mirar abajo
+            }
+        }
+
+        private void _MoverCamara(float deltaYaw, float deltaPitch = 0f)
         {
             if (!_mouseLookListo || _fieldCurH == null) return;
 
@@ -138,7 +132,11 @@ namespace ScpAgent.Bot
             _fieldSyncV.SetValue(_mouseLookInstance, newV); // ← newV en vez de v
         }
 
-        private void _Accion(Player player)
+        public void AbrirPuerta(Player player)
+        {
+            _AbrirPuerta(player);
+        }
+        private void _AbrirPuerta(Player player)
         {
             int layerMask = ~(1 << 13);
             if (!Physics.Raycast(
@@ -158,8 +156,11 @@ namespace ScpAgent.Bot
                     doorVariant.NetworkTargetState = !doorVariant.TargetState;
             }
         }
-
-        private void _EquiparItem(Player player)
+        public void EquiparTarjeta(Player player)
+        {
+            
+        }
+        private void _EquiparTarjeta(Player player)
         {
             var item = player.Items.FirstOrDefault(
                 i => i.Type.ToString().IndexOf("Keycard",

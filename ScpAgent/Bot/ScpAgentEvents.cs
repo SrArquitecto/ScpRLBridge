@@ -11,18 +11,18 @@ using Respawning.Objectives;
 
 namespace ScpAgent.Bot
 {
-    public class BotEvents
+    public class ScpAgentEvents
     {
         private readonly ScpAgentBot _bot;
         private bool _isSubscribed = false;
         public bool firstTime = true;
-        public static int TotalEventosSuscritos { get; private set; } = 0;
+        //public static int TotalEventosSuscritos { get; private set; } = 0;
 
         // Flag estático: marca qué agentId está esperando un cambio de rol.
         // Se establece en OnDying y se limpia en OnChangingRole.
         public static System.Collections.Generic.HashSet<int> PendingRoleChanges = new System.Collections.Generic.HashSet<int>();
 
-        public BotEvents(ScpAgentBot bot)
+        public ScpAgentEvents(ScpAgentBot bot)
         {
             _bot = bot;
         }
@@ -35,7 +35,7 @@ namespace ScpAgent.Bot
             Exiled.Events.Handlers.Player.ChangingRole        += OnChangingRole;
 
             _isSubscribed = true;
-            BotEvents.TotalEventosSuscritos += 3;
+            //ScpAgentEvents.TotalEventosSuscritos += 3;
         }
         public void DesuscribirEventos()
         {
@@ -44,7 +44,7 @@ namespace ScpAgent.Bot
             Exiled.Events.Handlers.Player.Hurting             -= OnHurt;
             Exiled.Events.Handlers.Player.ChangingRole        -= OnChangingRole;
             _isSubscribed = false;
-            BotEvents.TotalEventosSuscritos -= 3;
+            //ScpAgentEvents.TotalEventosSuscritos -= 3;
         }
 
         public void OnRoomChanged(RoomChangedEventArgs ev)
@@ -143,7 +143,7 @@ namespace ScpAgent.Bot
             // para procesar el siguiente cambio al rol asignado por el juego.
             if (newRole == RoleTypeId.Spectator)
             {
-                Log.Debug($"[BotEvents] Agente {_bot._agentId} pasó a Spectator, esperando nuevo rol del juego...");
+                //Log.Debug($"[BotEvents] Agente {_bot._agentId} pasó a Spectator, esperando nuevo rol del juego...");
                 return;
             }
 
@@ -153,13 +153,13 @@ namespace ScpAgent.Bot
             // Si el rol no cambió, no hacer nada
             if (newRole == oldRole) return;
 
-            Log.Info($"[BotEvents] Agente {_bot._agentId} cambiando rol: {oldRole} → {newRole}");
+            //Log.Info($"[BotEvents] Agente {_bot._agentId} cambiando rol: {oldRole} → {newRole}");
 
             // Actualizar el rol del bot
             _bot._role = newRole;
 
             // Crear nueva estrategia basada en el nuevo rol
-            IAgentRoleStrategyBase newStrategy;
+            IAgentRoleBaseStrategy newStrategy;
             switch (newRole)
             {
                 case RoleTypeId.ChaosRifleman:

@@ -9,11 +9,11 @@ namespace ScpAgent.Managers.Data
 {
     public static class RoleFactory
     {
-        public static (RoleTypeId rol, IAgentRoleStrategyBase strategy, ISensors sensors) 
+        public static (RoleTypeId rol, IAgentRoleBaseStrategy strategy, ISensors sensors) 
             CreateForRole(string roleName, int agentId)
         {
             RoleTypeId rol;
-            IAgentRoleStrategyBase strategy;
+            IAgentRoleBaseStrategy strategy;
             ISensors sensors = new HumanSensors(agentId);
 
             if (roleName == null || roleName == "classd")

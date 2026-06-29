@@ -20,13 +20,13 @@ using ScpAgent.Managers.Data;
 
 namespace ScpAgent.Bot
 {
-    public class BotSpawner
+    public class ScpAgentSpawner
     {   
         private ScpAgentBot _bot;
         private CoroutineHandle _initDelayHandle;
         private CoroutineHandle _respawnHandle;
         public bool _isRespawning = false;
-        public BotSpawner(ScpAgentBot bot)
+        public ScpAgentSpawner(ScpAgentBot bot)
         {
             _bot = bot;
         }
@@ -189,7 +189,7 @@ namespace ScpAgent.Bot
                     var slot = AgentManager.Instance?.GetSlot(AgentId);
                     if (slot != null)
                     {
-                        IAgentRoleStrategyBase newStrategy;
+                        IAgentRoleBaseStrategy newStrategy;
                         switch (role)
                         {
                             case RoleTypeId.ChaosRifleman:

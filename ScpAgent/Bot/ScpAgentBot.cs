@@ -73,7 +73,7 @@ namespace ScpAgent.Bot
 
         // ── Referencia al GameObject (no cambia aunque el wrapper Player quede stale) ──
        
-        public IAgentRoleStrategyBase _strategy { get; set; }
+        public IAgentRoleBaseStrategy _strategy { get; set; }
 
         // ── Reflection cache para FpcMouseLook ─────────────────────────────────
 
@@ -83,8 +83,8 @@ namespace ScpAgent.Bot
         private Vector3 _lastPos;
 
 
-        private BotSpawner _spawner;
-        private BotEvents _events;
+        private ScpAgentSpawner _spawner;
+        private ScpAgentEvents _events;
 
 
         // ───────────────────────────────────────────────────────────────────────
@@ -106,8 +106,8 @@ namespace ScpAgent.Bot
             );
             //Exiled.Events.Handlers.Player.RoomChanged         += OnRoomChanged;
             //Exiled.Events.Handlers.Player.Hurting             += OnHurt;
-            _spawner = new BotSpawner(this);
-            _events = new BotEvents(this);
+            _spawner = new ScpAgentSpawner(this);
+            _events = new ScpAgentEvents(this);
             // 1. Clonar el prefab del jugador
         }
 
@@ -144,12 +144,12 @@ namespace ScpAgent.Bot
             _events.firstTime = true;
             _spawner.SpawnearEnNuevaRonda(_role);
         }
-        public void SetStrategy(IAgentRoleStrategyBase strategy)
+        public void SetStrategy(IAgentRoleBaseStrategy strategy)
         {   
             _strategy?.OnUnbind();
             _strategy = strategy;
             _strategy.OnBind(_ctx);
-            if (_strategy is IAgentRoleStrategyHuman humanStrategy)
+            if (_strategy is IAgentRoleHumanStrategy humanStrategy)
             {
                 _sensores?.VincularEstrategia(
                     tipo => humanStrategy.CalcularPrioridadItem(tipo)
@@ -314,17 +314,10 @@ namespace ScpAgent.Bot
         /// <summary>
         /// Llamado por el BucleMaestroCentral en cada tick de simulación.
         /// </summary>
-        public void ActualizarFisica(float deltaTime)
-        {
-            // Refrescar referencia si quedó stale (por ejemplo tras respawn)
-            if (_exiledPlayer == null || !_exiledPlayer.IsAlive) return;
-                _strategy?.ActualizarFisica(deltaTime, _exiledPlayer, _ultimaAccion, _botGameObject);
-            
-        }
 
 
-        private bool _IsKeycard(ItemType t) =>
-            t.ToString().IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
+        private bool _IsKeycard(ItemType t) => t.ToString().IndexOf("Keycard", StringComparison.OrdinalIgnoreCase) >= 0;
+
 
         private float _GetKeycardBonus(ItemType type) => type switch
         {

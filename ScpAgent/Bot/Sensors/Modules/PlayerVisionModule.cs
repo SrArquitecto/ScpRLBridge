@@ -95,8 +95,8 @@ namespace ScpAgent.Bot.Sensors.Modules
 
             if (miPlayerActual == null || !miPlayerActual.IsAlive)
             {
-                if (UnityEngine.Time.frameCount % 100 == 0)
-                    Log.Warn($"[PlayerVision] Agente {miPlayerActual?.Id ?? -1}: _player es null o no está vivo");
+                //if (UnityEngine.Time.frameCount % 100 == 0)
+                    //Log.Warn($"[PlayerVision] Agente {miPlayerActual?.Id ?? -1}: _player es null o no está vivo");
                 return;
             }
 
@@ -124,7 +124,7 @@ namespace ScpAgent.Bot.Sensors.Modules
                 string miNick = miPlayerActual.Nickname ?? "null";
                 string miHubId = miPlayerActual.ReferenceHub != null ? miPlayerActual.ReferenceHub.netId.ToString() : "null";
                 string miGoName = miPlayerActual.GameObject != null ? miPlayerActual.GameObject.name : "null";
-                Log.Info($"[PlayerVisionDebug] Agente #{miPlayerActual.Id} nick={miNick} hubId={miHubId} go={miGoName}");
+                //Log.Info($"[PlayerVisionDebug] Agente #{miPlayerActual.Id} nick={miNick} hubId={miHubId} go={miGoName}");
             }
 
             int hubsEncontrados = 0;
@@ -371,8 +371,8 @@ namespace ScpAgent.Bot.Sensors.Modules
             obs.CountNeutrals = (float)countNeutrals/(float)_pool.Length;
             obs.CountEnemies = (float)countEnemies/(float)_pool.Length;
             obs.ClosestEnemyDistance = closestEnemyDistance;
-            if (UnityEngine.Time.frameCount % 100 == 0)
-                Log.Info($"[PlayerVisionEnd] Agente {miPlayerActual.Id} NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies}");
+            //if (UnityEngine.Time.frameCount % 100 == 0)
+                //Log.Info($"[PlayerVisionEnd] Agente {miPlayerActual.Id} NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies}");
         }
         
  

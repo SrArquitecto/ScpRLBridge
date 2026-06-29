@@ -23,7 +23,7 @@ namespace ScpAgent.Bot.Interfaces
         GameObject _botGameObject { get; set; }
         CharacterController _cc { get; set; }
         ISensors _sensores { get; set;}
-        IAgentRoleStrategyBase _strategy { get; set; }
+        IAgentRoleBaseStrategy _strategy { get; set; }
         float PendingReward { get; set; }
         bool EpisodioTerminado { get; set; }
 
@@ -31,7 +31,7 @@ namespace ScpAgent.Bot.Interfaces
         // 2. CICLO DE VIDA Y SPAWNER
         // ───────────────────────────────────────────────────────────────────────
         void Init(Simulation.FakeConnection fakeConn);
-        void SetStrategy(IAgentRoleStrategyBase strategy);
+        void SetStrategy(IAgentRoleBaseStrategy strategy);
         void SetDependencias(Simulation.FakeConnection fakeConn, GameObject botGameObject, Player player, CharacterController cc, RoleTypeId role);
         void EjecutarRespawn();
         void SpawnearEnNuevaRonda();
@@ -42,7 +42,6 @@ namespace ScpAgent.Bot.Interfaces
         // 3. LÓGICA PRINCIPAL DEL AGENTE (Cerebro y Físicas)
         // ───────────────────────────────────────────────────────────────────────
         void ReceiveAction(AgentAction action);
-        void ActualizarFisica(float deltaTime);
         AgentObservation GetObservation(float deltaTime);
         
         // ───────────────────────────────────────────────────────────────────────

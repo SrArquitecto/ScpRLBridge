@@ -54,6 +54,19 @@ namespace ScpAgent.Network
         private Action<int, IAgentController, ISensors> _procesarDelegate;
         private float _pendingDelta;
 
+        // ── Multi-agent mode (PettingZoo) ──────────────────────────────────
+        // Una sola conexión TCP que multiplexa N agentes vía dicts JSON.
+        // Coexiste con el modo single-agent: _isMultiMode decide qué camino usar.
+        private bool _isMultiMode = false;
+        private int _multiNumAgents = 0;
+        private TcpClient _multiClient;
+        private StreamWriter _multiWriter;
+        private readonly SemaphoreSlim _multiActionSignal = new SemaphoreSlim(0);
+        private readonly ConcurrentDictionary<int, bool> _multiActionReceived = new ConcurrentDictionary<int, bool>();
+        // Última observación serializada por agente (la usa el bucle maestro para
+        // construir el dict combinado en multi-modo).
+        private readonly ConcurrentDictionary<int, string> _latestObservations = new ConcurrentDictionary<int, string>();
+
         public ControlServer()
         {
             this.Initialized = false;
@@ -300,6 +313,92 @@ namespace ScpAgent.Network
                     reader.Dispose(); writer.Dispose(); stream.Dispose(); cliente.Close();
                     return;
                 }
+                // ── HANDSHAKE "MULTI_INIT_<N>" (PettingZoo) ────────────────────────
+                // Una sola conexión TCP que multiplexa N agentes vía dicts JSON.
+                // Formato de acción: {"agent_0": 5, "agent_1": 12, "agent_2": 0, "agent_3": 7}
+                // Formato de respuesta: {"agent_0": "<obs_json>", "agent_1": "...", ...}
+                else if (handshake.StartsWith("MULTI_INIT_"))
+                {
+                    string[] partes = handshake.Split('_');
+                    if (partes.Length == 3 && int.TryParse(partes[2], out int multiN))
+                    {
+                        // Solo un multi-cliente a la vez
+                        if (_isMultiMode || _clientes.Count > 0)
+                        {
+                            try
+                            {
+                                await writer.WriteLineAsync("DUPLICATE");
+                                await writer.FlushAsync();
+                            }
+                            catch { }
+                            cliente.Close();
+                            return;
+                        }
+
+                        // Responder REGISTERED antes de empezar a leer
+                        try
+                        {
+                            await writer.WriteLineAsync("MULTI_REGISTERED");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"[ControlServer] Fallo enviando MULTI_REGISTERED: {ex.Message}");
+                            cliente.Close();
+                            return;
+                        }
+
+                        // Activar multi-modo
+                        _isMultiMode = true;
+                        _multiNumAgents = multiN;
+                        _multiClient = cliente;
+                        _multiWriter = writer;
+
+                        // Pre-crear las colas de incoming/outgoing para los N agentes
+                        for (int i = 0; i < multiN; i++)
+                        {
+                            _incoming[i]  = new ConcurrentQueue<string>();
+                            _outgoing[i]  = new ConcurrentQueue<string>();
+                            _outgoingSignals[i] = new SemaphoreSlim(0);
+                            _multiActionReceived[i] = false;
+                        }
+
+                        // CRÍTICO: en single-mode `INIT_<id>_<rol>` crea el AgentSlot
+                        // vía el evento AgentHandshakeReceived. En multi-mode no hay INIT_,
+                        // así que tenemos que llamar a InstaciarSlot directamente. Si no,
+                        // AgentManager._pool queda null y DelayedSpawnSequence se queda
+                        // eternamente en "Esperando al resto de agentes..." porque
+                        // GetLength() < NumAgentsExpected para siempre.
+                        for (int i = 0; i < multiN; i++)
+                        {
+                            try
+                            {
+                                ScpAgent.Managers.AgentManager.Instance.InstanciarSlot(i, "classd");
+                                Log.Info($"[ControlServer] Slot {i} creado para multi-modo.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Error($"[ControlServer] Error creando slot {i}: {ex.Message}");
+                            }
+                        }
+
+                        Log.Info($"[ControlServer] 🤝 Multi-agent mode: {multiN} agentes vía 1 conexión TCP.");
+
+                        // CRÍTICO: en single-mode el spawn se dispara cuando los 4 INIT_ se
+                        // completan (vía _DispararEventoCreacion → OnAllAgentReady →
+                        // DelayedSpawnSequence → SpawnearAgentes). En multi-mode
+                        // el handshake es el equivalente a "los 4 agentes conectados",
+                        // así que disparamos el spawn directamente. Si no, el master loop
+                        // procesa acciones sobre agentes no spawneados → deadlock (el
+                        // Python espera una obs que nunca llega porque no hay agentes).
+                        NumAgentsExpected = multiN;
+                        IsPythonConnected = true;
+                        MEC.Timing.RunCoroutine(_DispararEventoCreacion());
+
+                        // Lanzar el handler multi (lee dicts y routea a _incoming)
+                        _ = HandleMultiAgentAsync(cliente, reader, multiN);
+                        return;
+                    }
+                }
                 else if (handshake.StartsWith("INIT_"))
                 {
                     string[] partes = handshake.Split('_');
@@ -414,6 +513,78 @@ namespace ScpAgent.Network
             {
                 Log.Error($"[ControlServer] Error manejando cliente: {ex.Message}");
                 reader.Dispose(); writer.Dispose(); stream.Dispose(); cliente.Close();
+            }
+        }
+
+        /// <summary>
+        /// Handler del multi-cliente: lee dicts JSON con acciones y los routea
+        /// a las colas _incoming[agentId]. Señala al bucle maestro vía _multiActionSignal
+        /// para que aplique la barrier (esperar a todos los agentes antes de step).
+        ///
+        /// Formato: {"agent_0": 5, "agent_1": 12, "agent_2": 0, "agent_3": 7}
+        ///   — cada valor es el action_id (int) directamente.
+        ///
+        /// Si el multi-cliente se desconecta, _isMultiMode vuelve a false y
+        /// el bucle maestro usa noop (12) hasta que llegue un nuevo MULTI_INIT_.
+        /// </summary>
+        private async Task HandleMultiAgentAsync(TcpClient cliente, StreamReader reader, int numAgents)
+        {
+            try
+            {
+                while (_isMultiMode && cliente.Connected)
+                {
+                    string line = await reader.ReadLineAsync();
+                    if (line == null)
+                    {
+                        Log.Warn("[ControlServer] Multi-client: EOF, cerrando.");
+                        break;
+                    }
+                    line = line.Trim();
+                    if (string.IsNullOrEmpty(line)) continue;
+
+                    // Parse dict: {"agent_0": 5, "agent_1": 12, ...}
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, int>>(line);
+                        if (dict == null) continue;
+
+                        foreach (var kv in dict)
+                        {
+                            if (!kv.Key.StartsWith("agent_")) continue;
+                            if (!int.TryParse(kv.Key.Substring(6), out int agentId)) continue;
+
+                            if (_incoming.TryGetValue(agentId, out var queue))
+                            {
+                                queue.Enqueue($"ACTION:{kv.Value}");
+                                _multiActionReceived[agentId] = true;
+                            }
+                        }
+                        // Señalar al bucle maestro que hay acciones listas
+                        _multiActionSignal.Release();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn($"[ControlServer] Multi parse error: {ex.Message} (line: {line.Substring(0, Math.Min(80, line.Length))}...)");
+                    }
+                }
+            }
+            catch (System.IO.IOException)
+            {
+                Log.Warn("[ControlServer] Multi-client: conexión cerrada.");
+            }
+            catch (ObjectDisposedException)
+            {
+                Log.Warn("[ControlServer] Multi-client: stream disposed.");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[ControlServer] Multi-client error: {ex.Message}");
+            }
+            finally
+            {
+                // Salir de multi-modo. El bucle maestro usará noop hasta nueva conexión.
+                _isMultiMode = false;
+                Log.Warn("[ControlServer] Multi-client: modo multi desactivado.");
             }
         }
 
@@ -532,6 +703,32 @@ namespace ScpAgent.Network
                 float frameStart = UnityEngine.Time.realtimeSinceStartup;
                 float deltaTime  = UnityEngine.Time.deltaTime;
                 _frameCount++;
+
+                // ── MULTI-MODE: barrier (esperar a todos los agentes antes de step) ──
+                if (_isMultiMode)
+                {
+                    // Reset flags
+                    for (int i = 0; i < _multiNumAgents; i++)
+                        _multiActionReceived[i] = false;
+
+                    // Esperar la señal con timeout de 0.5s (yield de frames de Unity)
+                    float barrierStart = UnityEngine.Time.realtimeSinceStartup;
+                    while (_multiActionSignal.CurrentCount == 0 &&
+                           UnityEngine.Time.realtimeSinceStartup - barrierStart < 0.5f)
+                        yield return Timing.WaitForOneFrame;
+
+                    // Consumir la señal si llegó (CurrentCount pasa a 0)
+                    if (_multiActionSignal.CurrentCount > 0)
+                        _multiActionSignal.Wait(0);
+                }
+
+                    // Rellenar con noop (12) los agentes que no llegaron a tiempo
+                    for (int i = 0; i < _multiNumAgents; i++)
+                    {
+                        if (!_multiActionReceived[i] && _incoming.TryGetValue(i, out var q))
+                            q.Enqueue("ACTION:12");
+                    }
+
                 // ── Métricas de perf ──────────────────────────────────────────
                 if (++_frameCount % 1000 == 0)
                 {
@@ -541,9 +738,9 @@ namespace ScpAgent.Network
                     float unscaledFps = 1f / UnityEngine.Time.unscaledDeltaTime;
                     Log.Info($"[Perf] FPS={fps:F1} UnscaledFPS={unscaledFps:F1} " +
                             $"FixedDelta={UnityEngine.Time.fixedDeltaTime*1000f:F1}ms");
-                
+
                     Log.Info($"[Perf] Mirror connections: {Mirror.NetworkServer.connections.Count}");
-                    Log.Info($"[Perf] EventosVivis: {BotEvents.TotalEventosSuscritos + BaseStrategy.TotalEventosSuscritos}");
+                    //Log.Info($"[Perf] EventosVivis: {ScpAgentEvents.TotalEventosSuscritos + BaseStrategy.TotalEventosSuscritos}");
                     Log.Info($"[Perf] Total Jugadores: {ReferenceHub.AllHubs.Count - 1}");
                     //_frameCount = 0;
                 }
@@ -551,6 +748,36 @@ namespace ScpAgent.Network
                 // ── Procesar mensajes ─────────────────────────────────────────
                 _pendingDelta = deltaTime;
                 AgentManager.Instance.ForEachListo(_procesarDelegate);
+
+                // ── MULTI-MODE: enviar dict combinado de observaciones ─────────
+                // CRÍTICO: NO enviar dict vacío antes de que los agentes estén
+                // spawneados. Si _latestObservations.Count == 0, significa que
+                // ningún agente IsReady ha procesado acciones aún (típicamente
+                // durante el spawn de 3s+). El Python espera obs y falla si
+                // recibe {}.
+                if (_isMultiMode && _multiWriter != null && _latestObservations.Count > 0)
+                {
+                    try
+                    {
+                        // IMPORTANTE: _latestObservations[i] es un STRING JSON (producido
+                        // por JsonUtils.ToJson). Si lo metemos directamente en el dict, el
+                        // JSON resultante tiene strings anidados, no dicts. Python espera
+                        // un dict por agente (accede a s["PosX"], etc.). Parseamos cada
+                        // string a dict antes de serializar el combinado.
+                        var obsDict = new Dictionary<string, object>();
+                        foreach (var kv in _latestObservations)
+                        {
+                            var parsed = JsonConvert.DeserializeObject<Dictionary<string, object>>(kv.Value);
+                            obsDict[$"agent_{kv.Key}"] = parsed;
+                        }
+                        string combined = JsonConvert.SerializeObject(obsDict);
+                        _multiWriter.WriteLineAsync(combined);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn($"[ControlServer] Multi send obs error: {ex.Message}");
+                    }
+                }
 
                 // ── Medir tiempo del bucle ────────────────────────────────────
                 _frameTimeAccum += UnityEngine.Time.realtimeSinceStartup - frameStart;
@@ -562,7 +789,6 @@ namespace ScpAgent.Network
                 }
             }
         }
-
 
         private void _ProcesarAgenteEnTick(int agentId, IAgentController bot, ISensors sensors)
         {
@@ -606,7 +832,7 @@ namespace ScpAgent.Network
                     if (int.TryParse(msg.Substring(7), out int actionId))
                         bot.ReceiveAction(new AgentAction { ActionId = actionId });
 
-                    bot.ActualizarFisica(deltaTime);
+                    ActionProcessor.ProcesarAccion(actionId, bot, deltaTime);
                 }
                 else if (msg == "GET_STATE")
                 {
@@ -629,23 +855,32 @@ namespace ScpAgent.Network
 
         /// <summary>
         /// Serializa la observación del bot y la encola para envío asíncrono.
+        /// En multi-modo, captura la obs en _latestObservations y NO encola per-agente
+        /// (el bucle maestro enviará un dict combinado).
         /// </summary>
         private void _EnviarObservacion(IAgentController bot, int agentId, float deltaTime)
         {
             AgentObservation obs = bot.GetObservation(deltaTime);
-            if (obs != null && _frameCount % 100 == 0)
-                Log.Info($"[EnviarObs] Agente {agentId} NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies}");
+            //if (obs != null && _frameCount % 100 == 0)
+                //Log.Info($"[EnviarObs] Agente {agentId} NearPlayers count={obs.NearPlayers.Count} CountEnemies={obs.CountEnemies}");
             // Usar bot._role en lugar de bot._exiledPlayer.Role.Type para evitar
             // NullReferenceException si _exiledPlayer es null (wrapper stale después de respawn)
             RoleTypeId role = bot._role;
             if (bot._exiledPlayer != null)
                 role = bot._exiledPlayer.Role.Type;
             string json = JsonUtils.ToJson(obs, role);
-            if (_frameCount % 500 == 0)
-                Log.Info($"[Perf] JSON size Agente {agentId}: {json.Length} chars");
-            
-            if (json.Contains(",]"))
-                Log.Warn("JSON INVALIDO DETECTADO: " + json);
+            //if (_frameCount % 500 == 0)
+                //Log.Info($"[Perf] JSON size Agente {agentId}: {json.Length} chars");
+
+            //if (json.Contains(",]"))
+                //Log.Warn("JSON INVALIDO DETECTADO: " + json);
+
+            // SIEMPRE capturar la observación (la usa el bucle maestro en multi-modo)
+            _latestObservations[agentId] = json;
+
+            // En multi-modo, el bucle maestro envía un dict combinado al final del step.
+            // No encolamos per-agente porque no hay _writers[agentId].
+            if (_isMultiMode) return;
 
             if (_outgoing.TryGetValue(agentId, out var colaOut))
             {
@@ -662,6 +897,10 @@ namespace ScpAgent.Network
             AgentObservation obs = BaseSensors.obsVacia;
 
             string json = JsonUtils.ToJson(obs, role);
+
+            // Capturar también en multi-modo (puede que llegue un obs vacía tras respawn)
+            _latestObservations[agentId] = json;
+            if (_isMultiMode) return;
 
             if (_outgoing.TryGetValue(agentId, out var colaOut))
             {

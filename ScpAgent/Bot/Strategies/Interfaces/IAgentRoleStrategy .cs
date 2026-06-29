@@ -4,22 +4,26 @@ using UnityEngine;
 
 namespace ScpAgent.Bot.Strategies.Interfaces
 {
-    public interface IAgentRoleStrategyBase
+    public interface IAgentRoleBaseStrategy
     {
         RoleTypeId Role { get; }
         void InicializarMovimiento(GameObject go, CharacterController cc);
-        void ActualizarFisica(float deltaTime, Player player, int accion, GameObject go);
+
+        void MoverPersonaje(int accion, float deltaTime, Player player, GameObject go);
+        void MoverCamara(int accion);
+        void AbrirPuerta(Player player);
+
         void OnBind(AgentContext ctx);
         void OnUnbind();
-        void EjecutarAccionEspecial(int actionId, float deltaTime);
+    
         public void OnRoomChanged(Room anterior, Room nueva);
         void OnDamageTaken(float amount, string type);
     }
 
-    public interface IAgentRoleStrategyHuman : IAgentRoleStrategyBase
+    public interface IAgentRoleHumanStrategy: IAgentRoleBaseStrategy
     {
         float CalcularPrioridadItem(ItemType tipo);
-        
+        void EquiparTarjeta(Player player);
         
     }
 }

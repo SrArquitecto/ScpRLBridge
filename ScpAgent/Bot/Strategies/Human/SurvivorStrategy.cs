@@ -14,6 +14,31 @@ namespace ScpAgent.Bot.Strategies.Human
         {
             
         }
+
+        public override void OnBind(AgentContext ctx)
+        {
+            base.OnBind(ctx);
+            if (_isSubscribed) return;
+
+            // ── SUSCRIPCIÓN DE EVENTOS (Lógica de Recompensas) ──
+            Exiled.Events.Handlers.Player.Escaping            += OnEscaping;
+
+            _isSubscribed = true;
+            //BaseStrategy.TotalEventosSuscritos += 6;
+            
+        }
+
+        public override void OnUnbind()
+        {
+            base.OnUnbind();
+            if (!_isSubscribed) return;
+            // ── LIMPIEZA OBLIGATORIA (Evita los eventos zombies que bajan los it/s) ──
+            Exiled.Events.Handlers.Player.Escaping            -= OnEscaping;
+            
+            _isSubscribed = false;
+            //BaseStrategy.TotalEventosSuscritos -= 6;
+        }
+
         public override float CalcularPrioridadItem(ItemType tipo)
         {
             switch (tipo)
@@ -53,6 +78,18 @@ namespace ScpAgent.Bot.Strategies.Human
             if (_ctx == null) return;
             _ctx?.AddReward(-amount * 1.5f);
         }
+
+        protected void OnEscaping(EscapingEventArgs ev)
+        {
+            if (!_EsEsteAgente(ev.Player)) return;
+            
+            _ctx.AddReward(200f);
+            _ctx.EndEpisode();
+            
+            ScpAgentEvents.PendingRoleChanges.Add(_ctx.AgentId);
+            Log.Debug($"[ScpAgentBot] Agente {_ctx.AgentId} escapó. +200 — episodio terminado.");
+        }
+
 
     }
 }

@@ -13,7 +13,7 @@ namespace ScpAgent.Managers.Data
         public int AgentId;
         public IAgentController Bot;
         public RoleTypeId Rol;
-        public IAgentRoleStrategyBase Strategy;
+        public IAgentRoleBaseStrategy Strategy;
         public ISensors Sensors;
         public FakeConnection FakeConnection;
 

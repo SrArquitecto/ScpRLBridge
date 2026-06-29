@@ -74,11 +74,11 @@ namespace ScpAgent.Managers
         {
             yield return Timing.WaitForSeconds(3.0f);
 
-            while (_plugin.AgentManager.GetLength() < _plugin.ControlServer.NumAgentsExpected)
-            {
-                Log.Info("[RoundManager] Esperando al resto de agentes...");
-                yield return Timing.WaitForSeconds(0.1f);
-            }
+            //while (_plugin.AgentManager.GetLength() < _plugin.ControlServer.NumAgentsExpected)
+            //{
+            //    Log.Info("[RoundManager] Esperando al resto de agentes...");
+            //    yield return Timing.WaitForSeconds(0.1f);
+            //}
 
             Log.Info("[RoundManager] Forzando inicio de ronda antes de spawnear agentes...");
             CharacterClassManager.ForceRoundStart();
