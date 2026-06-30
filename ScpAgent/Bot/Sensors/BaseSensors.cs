@@ -117,7 +117,7 @@ namespace ScpAgent.Bot.Sensors
         // MÉTODO PRINCIPAL
         // ───────────────────────────────────────────────────────────────────────
         public virtual AgentObservation GetCurrentState(
-            float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
+            float delta, int[] accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {
             
             string p = _player != null ? _player.Nickname : "null";
@@ -170,7 +170,7 @@ namespace ScpAgent.Bot.Sensors
             return primeraVez;
         }
 
-        private SensorContext _BuildContext(float deltaTime, float reward, int lastAction, AgentCacheData data, bool done)
+        private SensorContext _BuildContext(float deltaTime, float reward, int[] lastAction, AgentCacheData data, bool done)
         {
             _ctxCache.HalfX       = data.halfX;
             _ctxCache.HalfY       = data.halfY;
@@ -178,7 +178,7 @@ namespace ScpAgent.Bot.Sensors
             _ctxCache.Center      = data.center;
             _ctxCache.Delta       = deltaTime;
             _ctxCache.Reward      = reward;
-            _ctxCache.LastAction  = lastAction; 
+            _ctxCache.LastAction  = lastAction;
             _ctxCache.Done        = done;
             _ctxCache.AgentId     = _agentId;
             return _ctxCache;

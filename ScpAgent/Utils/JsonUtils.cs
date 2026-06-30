@@ -50,7 +50,13 @@ public static class JsonUtils
         sb.Append("\"HasKeycard\":").Append(obs.HasKeycard ? "true" : "false").Append(",");
         sb.Append("\"KeycardTier\":").Append(obs.KeycardTier).Append(",");
         sb.Append("\"CanInteract\":").Append(obs.CanInteract).Append(",");
-        sb.Append("\"LastAction\":").Append(obs.LastAction).Append(",");
+        sb.Append("\"LastLongAction\":"); AppendFloat(sb, obs.LastLongAction, 3); sb.Append(",");
+        sb.Append("\"LastLatAction\":"); AppendFloat(sb, obs.LastLatAction, 3); sb.Append(",");
+        sb.Append("\"LastYawAction\":"); AppendFloat(sb, obs.LastYawAction, 3); sb.Append(",");
+        sb.Append("\"LastPitchAction\":"); AppendFloat(sb, obs.LastPitchAction, 3); sb.Append(",");
+        sb.Append("\"LastInvAction\":"); AppendFloat(sb, obs.LastInvAction, 3); sb.Append(",");
+        sb.Append("\"LastInteractAction\":"); AppendFloat(sb, obs.LastInteractAction, 4); sb.Append(",");
+        sb.Append("\"LastJumpAction\":"); AppendFloat(sb, obs.LastJumpAction, 3); sb.Append(",");
         sb.Append("\"TimeLastAction\":"); AppendFloat(sb, obs.TimeLastAction, 3); sb.Append(",");
         sb.Append("\"RoundTimeRemaining\":"); AppendFloat(sb, obs.RoundTimeRemaining, 2); sb.Append(",");
         sb.Append("\"Reward\":"); AppendFloat(sb, obs.Reward, 4); sb.Append(",");

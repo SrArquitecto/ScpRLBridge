@@ -15,7 +15,8 @@ namespace ScpAgent.Bot.Sensors.Data
         public Vector3      Center           { get; set; }
         public float        Delta            { get; set; }
         public float        Reward           { get; set; }
-        public int          LastAction       { get; set; }
+        // Acción multi-discreto anterior (7 ejes): long,lat,yaw,pitch,inv,interact,jump
+        public int[]        LastAction       { get; set; } = new int[] { 0, 0, 0, 0, 0, 0, 0 };
         public bool         Done             { get; set; }
 
         // Datos del jugador para evitar recomputación

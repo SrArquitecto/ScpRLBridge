@@ -55,11 +55,15 @@ namespace ScpAgent.Bot.Strategy.Movement
 
             Vector3 vel = accion switch
             {
-                1 =>  fwd   * VEL_CAMINAR,
-                2 => -fwd   * VEL_CAMINAR,
-                3 => -right * VEL_CAMINAR,
-                4 =>  right * VEL_CAMINAR,
-                5 =>  fwd   * VEL_SPRINT,
+                1  =>  fwd                * VEL_CAMINAR,    // forward
+                2  => -fwd                * VEL_CAMINAR,    // backward
+                3  =>  right              * VEL_CAMINAR,    // strafe right
+                4  => -right              * VEL_CAMINAR,    // strafe left
+                5  =>  fwd                * VEL_SPRINT,     // sprint forward
+                6  => ( fwd +  right).normalized * VEL_CAMINAR, // forward+right
+                7  => ( fwd + -right).normalized * VEL_CAMINAR, // forward+left
+                8  => (-fwd +  right).normalized * VEL_CAMINAR, // back+right
+                9  => (-fwd + -right).normalized * VEL_CAMINAR, // back+left
                 _ =>  Vector3.zero
             };
 

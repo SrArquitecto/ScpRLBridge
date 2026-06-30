@@ -829,10 +829,44 @@ namespace ScpAgent.Network
 
                 if (msg.StartsWith("ACTION:"))
                 {
-                    if (int.TryParse(msg.Substring(7), out int actionId))
-                        bot.ReceiveAction(new AgentAction { ActionId = actionId });
+                    // Formato multi-discreto: "ACTION:<long>,<lat>,<yaw>,<pitch>,<inv>,<interact>,<jump>\n"
+                    // Compatibilidad: 3 ints → long=0, lat=0, yaw=0, pitch=0, inv=a, interact=b, jump=c
+                    //                  1 int   → inv=int, resto 0
+                    var parts = msg.Substring(7).Split(',');
+                    int longAct=0, latAct=0, yawAct=0, pitchAct=0, invAct=0, intAct=0, jumpAct=0;
+                    if (parts.Length == 7)
+                    {
+                        int.TryParse(parts[0], out longAct);
+                        int.TryParse(parts[1], out latAct);
+                        int.TryParse(parts[2], out yawAct);
+                        int.TryParse(parts[3], out pitchAct);
+                        int.TryParse(parts[4], out invAct);
+                        int.TryParse(parts[5], out intAct);
+                        int.TryParse(parts[6], out jumpAct);
+                    }
+                    else if (parts.Length == 3)
+                    {
+                        int.TryParse(parts[0], out longAct);
+                        int.TryParse(parts[1], out yawAct);
+                        int.TryParse(parts[2], out invAct);
+                    }
+                    else if (parts.Length == 1 && int.TryParse(parts[0], out int singleAct))
+                    {
+                        invAct = singleAct;
+                    }
+                    else
+                    {
+                        Log.Warn($"[ControlServer] Mensaje ACTION malformado de agente {agentId}: '{msg}'");
+                        return;
+                    }
 
-                    ActionProcessor.ProcesarAccion(actionId, bot, deltaTime);
+                    bot.ReceiveAction(new AgentAction
+                    {
+                        ActionIds = new[] { longAct, latAct, yawAct, pitchAct, invAct, intAct, jumpAct }
+                    });
+                    ActionProcessor.ProcesarAcciones(
+                        longAct, latAct, yawAct, pitchAct, invAct, intAct, jumpAct,
+                        bot, deltaTime);
                 }
                 else if (msg == "GET_STATE")
                 {

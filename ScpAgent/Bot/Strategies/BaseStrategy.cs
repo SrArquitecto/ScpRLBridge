@@ -31,6 +31,10 @@ namespace ScpAgent.Bot.Strategies
         {
             _movimiento.MoverCamara(accion);
         }
+        public void MoverCamara(float dYaw, float dPitch)
+        {
+            _movimiento.MoverCamara(dYaw, dPitch);
+        }
 
 
         public void AbrirPuerta(Player player)

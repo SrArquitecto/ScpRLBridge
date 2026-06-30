@@ -60,8 +60,9 @@ namespace ScpAgent.Bot
         public bool _firstRespawn { get; set; } = true;
 
 
-        // ── Estado de la acción ─────────────────────────────────────────────────
-        private int _ultimaAccion = 12; // 12 = NOOP
+        // ── Estado de la acción multi-discreto ───────────────────────────────
+        // [0]=move, [1]=cam, [2]=act. La observación envía estos como features.
+        private int[] _ultimaAccion = new int[] { 0, 0, 0, 0, 0, 0, 0 };
         private float _lastActionTime;
 
         // ── Sensores ────────────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ namespace ScpAgent.Bot
             _ctx.ActualizarPlayer(freshPlayer);
             PendingReward      = 0f;
             EpisodioTerminado  = false;
-            _ultimaAccion      = 12;
+            _ultimaAccion      = new int[] { 0, 0, 0, 0, 0, 0, 0 };
             
             try 
             {
@@ -197,8 +198,8 @@ namespace ScpAgent.Bot
                 BaseSensors.agentCacheData.Remove(_exiledPlayer.Id);
 
             _firstRespawn = true;
-            // ── Estado de acción ────────────────────────────────────────────
-            _ultimaAccion   = 12; // NOOP
+            // ── Estado de acción multi-discreto ────────────────────────────
+            _ultimaAccion   = new int[] { 0, 0, 0, 0, 0, 0, 0 };
             _lastActionTime = 0f;
 
             // ── Estado de episodio ───────────────────────────────────────────
@@ -244,12 +245,22 @@ namespace ScpAgent.Bot
         // ───────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// El ControlServer deposita aquí la acción recibida de Python.
+        /// El ControlServer deposita aquí la acción multi-discreto recibida de Python.
+        /// action.ActionIds = [move, cam, act]
         /// </summary>
         public void ReceiveAction(AgentAction action)
         {
             if (action == null) return;
-            _ultimaAccion = action.ActionId;
+            if (action.ActionIds != null && action.ActionIds.Length == 7)
+                _ultimaAccion = action.ActionIds;
+            else if (action.ActionIds != null && action.ActionIds.Length >= 1)
+            {
+                // Compatibilidad: rellenar con 0 hasta tener 7
+                var padded = new int[7];
+                for (int i = 0; i < Math.Min(action.ActionIds.Length, 7); i++)
+                    padded[i] = action.ActionIds[i];
+                _ultimaAccion = padded;
+            }
             _lastActionTime = Time.time;
         }
 

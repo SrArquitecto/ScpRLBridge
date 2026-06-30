@@ -39,7 +39,7 @@ namespace ScpAgent.Bot.Sensors
         }
 
         public override AgentObservation GetCurrentState(
-            float delta, int accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
+            float delta, int[] accionAnterior, float reward, bool done, RoleTypeId role, int playerTier)
         {     
             AgentObservation observation = base.GetCurrentState(delta, accionAnterior, reward, done, role, playerTier);
             Vector3 pos         = _player.Position;

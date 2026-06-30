@@ -85,13 +85,38 @@ namespace ScpAgent.Bot.Strategy.Movement
 
         public void MoverCamara(int accion)
         {
+            // Compatibilidad: usa los IDs antiguos (1-4) con velocidad fija.
+            // Para el sistema de 7 ejes se usan los métodos separados
+            // MoverCamaraYaw / MoverCamaraPitch que aceptan delta arbitrario.
             switch (accion)
             {
-                case 6:  _MoverCamara(-VEL_CAMARA, 0f);        break; // girar izquierda
-                case 7:  _MoverCamara( VEL_CAMARA, 0f);        break; // girar derecha
-                case 8: _MoverCamara(0f, -VEL_CAMARA_PITCH);        break; // mirar arriba
-                case 9: _MoverCamara(0f,  VEL_CAMARA_PITCH);        break; // mirar abajo
+                case 1: _MoverCamara(0f, -VEL_CAMARA_PITCH); break;
+                case 2: _MoverCamara(0f,  VEL_CAMARA_PITCH); break;
+                case 3: _MoverCamara( VEL_CAMARA, 0f);       break;
+                case 4: _MoverCamara(-VEL_CAMARA, 0f);       break;
             }
+        }
+
+        public void MoverCamara(float dYaw, float dPitch)
+        {
+            // Compatibilidad: usa los IDs antiguos (1-4) con velocidad fija.
+            // Para el sistema de 7 ejes se usan los métodos separados
+            // MoverCamaraYaw / MoverCamaraPitch que aceptan delta arbitrario.
+            _MoverCamara(dYaw, dPitch);
+        }
+
+        // Para el sistema multi-discreto de 7 ejes: yaw con velocidad variable
+        public void MoverCamaraYaw(float deltaYaw)
+        {
+            if (Mathf.Abs(deltaYaw) > 0.001f)
+                _MoverCamara(deltaYaw, 0f);
+        }
+
+        // Para el sistema multi-discreto de 7 ejes: pitch con velocidad variable
+        public void MoverCamaraPitch(float deltaPitch)
+        {
+            if (Mathf.Abs(deltaPitch) > 0.001f)
+                _MoverCamara(0f, deltaPitch);
         }
 
         protected void _MoverCamara(float deltaYaw, float deltaPitch = 0f)

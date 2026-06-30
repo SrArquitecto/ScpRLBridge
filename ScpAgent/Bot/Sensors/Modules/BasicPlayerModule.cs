@@ -116,10 +116,15 @@ namespace ScpAgent.Bot.Sensors.Modules
             obs.Room        = roomStr;
             obs.HasKeycard  = hasKeycard;
             obs.KeycardTier = playerTier;
-            obs.LastAction  = ctx.LastAction;
+            obs.LastLongAction    = ctx.LastAction.Length > 0 ? ctx.LastAction[0] / 3f  : 0f;
+            obs.LastLatAction     = ctx.LastAction.Length > 1 ? ctx.LastAction[1] / 3f  : 0f;
+            obs.LastYawAction     = ctx.LastAction.Length > 2 ? ctx.LastAction[2] / 9f  : 0f;
+            obs.LastPitchAction   = ctx.LastAction.Length > 3 ? ctx.LastAction[3] / 9f  : 0f;
+            obs.LastInvAction     = ctx.LastAction.Length > 4 ? ctx.LastAction[4] / 6f  : 0f;
+            obs.LastInteractAction= ctx.LastAction.Length > 5 ? ctx.LastAction[5] / 4f  : 0f;
+            obs.LastJumpAction    = ctx.LastAction.Length > 6 ? ctx.LastAction[6] / 2f  : 0f;
             obs.Reward      = ctx.Reward;
             obs.Done        = ctx.Done;
-            
         }
 
 

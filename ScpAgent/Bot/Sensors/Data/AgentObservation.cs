@@ -34,7 +34,14 @@ namespace ScpAgent.Bot.Sensors.Data
         public float TimeLastAction { get; set; }
         public float RoundTimeRemaining { get; set; }
         public int CanInteract { get; set; }
-        public int LastAction { get; set; }
+        // Acción multi-discreto anterior — 7 ejes, normalizados 0-1 por su dim
+        public float LastLongAction    { get; set; }   // long   / 3
+        public float LastLatAction     { get; set; }   // lat    / 3
+        public float LastYawAction     { get; set; }   // yaw    / 9
+        public float LastPitchAction   { get; set; }   // pitch  / 9
+        public float LastInvAction     { get; set; }   // inv    / 6
+        public float LastInteractAction{ get; set; }   // int    / 3
+        public float LastJumpAction    { get; set; }   // jump   / 2
         public float Health { get; set; }
         public bool AmIHurt { get; set; }
         public string Zone { get; set; }

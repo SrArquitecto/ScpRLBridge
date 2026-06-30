@@ -11,6 +11,7 @@ namespace ScpAgent.Bot.Strategies.Interfaces
 
         void MoverPersonaje(int accion, float deltaTime, Player player, GameObject go);
         void MoverCamara(int accion);
+        public void MoverCamara(float dYaw, float dPitch);
         void AbrirPuerta(Player player);
 
         void OnBind(AgentContext ctx);
